@@ -68,6 +68,7 @@
         const POINTER_COLORS = {
           lst: { bg: 'bg-indigo-500', text: 'text-indigo-500' }, 
           current: { bg: 'bg-blue-600', text: 'text-blue-600' },
+          tail: { bg: 'bg-blue-600', text: 'text-blue-600' }, // Added tail color (same as current)
           prev: { bg: 'bg-orange-600', text: 'text-orange-600' },
           newNode: { bg: 'bg-green-600', text: 'text-green-600' }
         };
@@ -85,11 +86,11 @@
     if (lst == null) {
         return new Node<>(val);
     }
-    Node<Integer> current = lst;
-    while (current.getNext() != null) {
-        current = current.getNext();
+    Node<Integer> tail = lst;
+    while (tail.getNext() != null) {
+        tail = tail.getNext();
     }
-    current.setNext(new Node<>(val));
+    tail.setNext(new Node<>(val));
     return lst; // Return original head reference
 }`,
             addAfter: `public void addAfter(int target, int val) {
@@ -167,11 +168,11 @@
     if (lst == null) {
         return new Node<int>(val);
     }
-    Node<int> current = lst;
-    while (current.GetNext() != null) {
-        current = current.GetNext();
+    Node<int> tail = lst;
+    while (tail.GetNext() != null) {
+        tail = tail.GetNext();
     }
-    current.SetNext(new Node<int>(val));
+    tail.SetNext(new Node<int>(val));
     return lst; // Return original head reference
 }`,
             addAfter: `public void AddAfter(int target, int val) {
@@ -420,6 +421,7 @@
                 head: tempList.length > 0 ? tempList[0].id : 'NULL',
                 lst: null,
                 current: null,
+                tail: null, // Added tail pointer
                 prev: null,
                 newNode: null 
             };
@@ -457,7 +459,7 @@
             const finishTrace = (pointerUpdates, msg, finalState, returnInfo = null, variables = {}) => {
                 const cleanedPointers = { 
                     ...pointerUpdates, 
-                    lst: null, current: null, prev: null, newNode: null 
+                    lst: null, current: null, tail: null, prev: null, newNode: null 
                 };
                 addStep(cleanedPointers, -1, msg, [], finalState, returnInfo, variables);
             };
@@ -496,21 +498,21 @@
                 } else {
                     addStep({}, 2, "lst == null -> False");
                     
-                    let curr = tempList[0];
-                    addStep({ current: curr.id }, 5, "Node current = lst");
+                    let tail = tempList[0];
+                    addStep({ tail: tail.id }, 5, "Node tail = lst");
 
-                    while (curr.next !== null) {
-                        addStep({}, 6, "current.GetNext() != null -> True");
-                        addStep({}, 7, "current = current.GetNext()");
-                        curr = tempList.find(n => n.id === curr.next);
-                        addStep({ current: curr.id }, 7, "Advanced current");
+                    while (tail.next !== null) {
+                        addStep({}, 6, "tail.GetNext() != null -> True");
+                        addStep({}, 7, "tail = tail.GetNext()");
+                        tail = tempList.find(n => n.id === tail.next);
+                        addStep({ tail: tail.id }, 7, "Advanced tail");
                     }
                     
-                    addStep({}, 6, "current.GetNext() != null -> False");
+                    addStep({}, 6, "tail.GetNext() != null -> False");
                     
-                    addStep({ newNode: newNodeId }, 9, `current.SetNext(new Node(${valInt}))`, [newNodeObj], null, null, {}, null, curr.id);
+                    addStep({ newNode: newNodeId }, 9, `tail.SetNext(new Node(${valInt}))`, [newNodeObj], null, null, {}, null, tail.id);
                     
-                    curr.next = newNodeId;
+                    tail.next = newNodeId;
                     tempList = [...tempList, newNodeObj];
                     
                     addStep({}, 10, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
@@ -974,6 +976,7 @@
                                         React.createElement("div", { key: "node-wrapper", className: "relative mx-1" }, [
                                             currentSnapshot.pointers.lst === node.id && React.createElement(NodePointer, { name: "lst", colorInfo: POINTER_COLORS.lst }),
                                             currentSnapshot.pointers.current === node.id && React.createElement(NodePointer, { name: "curr", colorInfo: POINTER_COLORS.current }),
+                                            currentSnapshot.pointers.tail === node.id && React.createElement(NodePointer, { name: "tail", colorInfo: POINTER_COLORS.tail }),
                                             currentSnapshot.pointers.prev === node.id && React.createElement(NodePointer, { name: "prev", colorInfo: POINTER_COLORS.prev }),
                                             currentSnapshot.pointers.newNode === node.id && React.createElement(NodePointer, { name: "newNode", colorInfo: POINTER_COLORS.newNode }),
                                             
