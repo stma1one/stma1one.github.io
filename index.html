@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Linked List Visualizer</title>
+    
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React & ReactDOM -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+          "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom",
+          "lucide-react": "https://esm.sh/lucide-react@0.292.0?external=react,react-dom"
+        }
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+      /* Custom scrollbar for code block */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569; 
+      }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
+
+    <!-- 3. Application Logic -->
+    <script type="module">
+        import React, { useState, useEffect, useRef, forwardRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence } from 'framer-motion';
+        import { 
+          Play, Pause, SkipBack, SkipForward, RefreshCcw, 
+          Settings, Code, MousePointer2, CheckCircle2, CornerDownLeft, Calculator,
+          Trash2, Maximize, Minimize, Plus, Sparkles, Loader2, MessageSquare 
+        } from 'lucide-react';
+
+        // --- CONSTANTS & CONFIG ---
+
+        const OPS = {
+          ADD_FIRST: 'addFirst',
+          ADD_LAST: 'addLast',
+          ADD_AFTER: 'addAfter',
+          ADD_BEFORE: 'addBefore',
+          DELETE: 'delete',
+          FIND: 'find',
+          COUNT: 'count'
+        };
+
+        const POINTER_COLORS = {
+          lst: { bg: 'bg-indigo-500', text: 'text-indigo-500' }, 
+          current: { bg: 'bg-blue-600', text: 'text-blue-600' },
+          prev: { bg: 'bg-orange-600', text: 'text-orange-600' },
+          newNode: { bg: 'bg-green-600', text: 'text-green-600' }
+        };
+
+        // --- CODE TEMPLATES ---
+
+        const CODE_DATA = {
+          java: {
+            addFirst: `public Node<Integer> addFirst(Node<Integer> lst, int val) {
+    Node<Integer> newNode = new Node<>(val);
+    newNode.setNext(lst);
+    return newNode; // Returns new head reference
+}`,
+            addLast: `public Node<Integer> addLast(Node<Integer> lst, int val) {
+    if (lst == null) {
+        return new Node<>(val);
+    }
+    Node<Integer> current = lst;
+    while (current.getNext() != null) {
+        current = current.getNext();
+    }
+    current.setNext(new Node<>(val));
+    return lst; // Return original head reference
+}`,
+            addAfter: `public void addAfter(int target, int val) {
+    Node current = head;
+    while (current != null && current.getValue() != target) {
+        current = current.getNext();
+    }
+    if (current != null) {
+        Node newNode = new Node(val);
+        newNode.setNext(current.getNext());
+        current.setNext(newNode);
+    }
+}`,
+            addBefore: `public Node<Integer> addBefore(Node<Integer> lst, int target, int val) {
+    if (lst == null) return null;
+    if (lst.getValue() == target) {
+        return addFirst(lst, val);
+    }
+    Node<Integer> prev = null;
+    Node<Integer> current = lst;
+    while (current != null && current.getValue() != target) {
+        prev = current;
+        current = current.getNext();
+    }
+    if (current != null) {
+        Node<Integer> newNode = new Node<>(val);
+        newNode.setNext(current);
+        prev.setNext(newNode);
+    }
+    return lst; // Return reference
+}`,
+            delete: `public Node<Integer> delete(Node<Integer> lst, int target) {
+    if (lst == null) return null;
+    if (lst.getValue() == target) {
+        return lst.getNext(); // Head deleted, return next
+    }
+    Node<Integer> prev = null;
+    Node<Integer> current = lst;
+    while (current != null && current.getValue() != target) {
+        prev = current;
+        current = current.getNext();
+    }
+    if (current != null) {
+        prev.setNext(current.getNext());
+    }
+    return lst;
+}`,
+            find: `public boolean find(Node<Integer> lst, int target) {
+    Node<Integer> current = lst;
+    while (current != null) {
+        if (current.getValue() == target) {
+            return true;
+        }
+        current = current.getNext();
+    }
+    return false;
+}`,
+            count: `public int count() {
+    int count = 0;
+    Node current = head;
+    while (current != null) {
+        count++;
+        current = current.getNext();
+    }
+    return count;
+}`
+          },
+          csharp: {
+            addFirst: `public Node<int> AddFirst(Node<int> lst, int val) {
+    Node<int> newNode = new Node<int>(val);
+    newNode.SetNext(lst);
+    return newNode; // Returns new head reference
+}`,
+            addLast: `public Node<int> AddLast(Node<int> lst, int val) {
+    if (lst == null) {
+        return new Node<int>(val);
+    }
+    Node<int> current = lst;
+    while (current.GetNext() != null) {
+        current = current.GetNext();
+    }
+    current.SetNext(new Node<int>(val));
+    return lst; // Return original head reference
+}`,
+            addAfter: `public void AddAfter(int target, int val) {
+    Node current = head;
+    while (current != null && current.GetValue() != target) {
+        current = current.GetNext();
+    }
+    if (current != null) {
+        Node newNode = new Node(val);
+        newNode.SetNext(current.GetNext());
+        current.SetNext(newNode);
+    }
+}`,
+            addBefore: `public Node<int> AddBefore(Node<int> lst, int target, int val) {
+    if (lst == null) return null;
+    if (lst.GetValue() == target) {
+        return AddFirst(lst, val);
+    }
+    Node<int> prev = null;
+    Node<int> current = lst;
+    while (current != null && current.GetValue() != target) {
+        prev = current;
+        current = current.GetNext();
+    }
+    if (current != null) {
+        Node<int> newNode = new Node<int>(val);
+        newNode.SetNext(current);
+        prev.SetNext(newNode);
+    }
+    return lst; // Return reference
+}`,
+            delete: `public Node<int> Delete(Node<int> lst, int target) {
+    if (lst == null) return null;
+    if (lst.GetValue() == target) {
+        return lst.GetNext(); // Head deleted, return next
+    }
+    Node<int> prev = null;
+    Node<int> current = lst;
+    while (current != null && current.GetValue() != target) {
+        prev = current;
+        current = current.GetNext();
+    }
+    if (current != null) {
+        prev.SetNext(current.GetNext());
+    }
+    return lst;
+}`,
+            find: `public bool Find(Node<int> lst, int target) {
+    Node<int> current = lst;
+    while (current != null) {
+        if (current.GetValue() == target) {
+            return true;
+        }
+        current = current.GetNext();
+    }
+    return false;
+}`,
+            count: `public int Count() {
+    int count = 0;
+    Node current = head;
+    while (current != null) {
+        count++;
+        current = current.GetNext();
+    }
+    return count;
+}`
+          }
+        };
+
+        // --- COMPONENTS ---
+
+        const NodePointer = ({ name, colorInfo }) => {
+          return (
+            React.createElement(motion.div, {
+              layoutId: `pointer-${name}`,
+              className: "absolute -top-16 left-0 right-0 flex flex-col items-center justify-end z-20 pointer-events-none",
+              initial: { opacity: 0, y: -20 },
+              animate: { opacity: 1, y: 0 },
+              exit: { opacity: 0, scale: 0 },
+              transition: { type: "spring", stiffness: 300, damping: 28 }
+            }, [
+              React.createElement("span", { 
+                key: "label",
+                className: `px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider shadow-sm mb-1 ${colorInfo.bg}` 
+              }, name),
+              React.createElement("div", { 
+                key: "line",
+                className: `w-0.5 h-6 ${colorInfo.bg}` 
+              }),
+              React.createElement("div", { 
+                key: "arrow",
+                className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-current",
+                style: { 
+                    color: colorInfo.text.replace('text-', '').replace('-500','').replace('-600','') === 'indigo' ? '#6366f1' : 
+                           colorInfo.text.includes('blue') ? '#2563eb' : 
+                           colorInfo.text.includes('orange') ? '#ea580c' : '#16a34a' 
+                } 
+              })
+            ])
+          );
+        };
+
+        const NullPointer = ({ name, colorInfo }) => {
+            return (
+              React.createElement(motion.div, {
+                layoutId: `pointer-${name}`,
+                className: "absolute -top-16 left-0 right-0 flex flex-col items-center justify-end z-20 pointer-events-none",
+                initial: { opacity: 0, y: -20 },
+                animate: { opacity: 1, y: 0 },
+                exit: { opacity: 0, scale: 0 },
+                transition: { type: "spring", stiffness: 300, damping: 28 }
+              }, [
+                React.createElement("span", { 
+                    key: "label",
+                    className: `px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider shadow-sm mb-1 ${colorInfo.bg}` 
+                }, name),
+                React.createElement("div", { 
+                    key: "line",
+                    className: `w-0.5 h-6 ${colorInfo.bg}` 
+                }),
+                React.createElement("div", { 
+                    key: "arrow",
+                    className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-current",
+                    style: { 
+                        color: colorInfo.text.replace('text-', '').replace('-500','').replace('-600','') === 'indigo' ? '#6366f1' : 
+                               colorInfo.text.includes('blue') ? '#2563eb' : 
+                               colorInfo.text.includes('orange') ? '#ea580c' : '#16a34a' 
+                    } 
+                })
+              ])
+            );
+        };
+
+        const LinkArrow = ({ isModified }) => (
+            React.createElement("div", { className: "flex items-center justify-center w-12 h-8 relative top-4 mx-1" },
+                React.createElement(motion.svg, {
+                    width: "100%", height: "10", viewBox: "0 0 50 10", overflow: "visible"
+                }, [
+                    React.createElement(motion.line, {
+                        key: "line",
+                        x1: "0", y1: "5", x2: "42", y2: "5",
+                        stroke: isModified ? "#f59e0b" : "#cbd5e1",
+                        strokeWidth: "3", strokeLinecap: "round",
+                        initial: { pathLength: 0 },
+                        animate: { pathLength: 1 },
+                        exit: { pathLength: 0, opacity: 0 },
+                        transition: { duration: 0.4, ease: "easeInOut" }
+                    }),
+                    React.createElement(motion.path, {
+                        key: "head",
+                        d: "M 42 5 L 36 2 L 36 8 Z",
+                        fill: isModified ? "#f59e0b" : "#cbd5e1",
+                        initial: { scale: 0, opacity: 0 },
+                        animate: { scale: 1, opacity: 1 },
+                        exit: { scale: 0, opacity: 0 },
+                        transition: { delay: 0.3, duration: 0.2 }
+                    })
+                ]),
+                isModified && React.createElement(motion.div, {
+                    className: "absolute inset-0 bg-orange-400/20 rounded-full blur-md",
+                    initial: { opacity: 0, scale: 0.5 },
+                    animate: { opacity: [0, 1, 0], scale: 1.5 },
+                    transition: { duration: 0.8, repeat: Infinity }
+                })
+            )
+        );
+
+        const NullBlock = forwardRef(({ pointers }, ref) => (
+            React.createElement(motion.div, {
+                ref: ref,
+                initial: { opacity: 0, scale: 0.5 },
+                animate: { opacity: 1, scale: 1 },
+                exit: { opacity: 0, scale: 0.5 },
+                className: "relative flex flex-col items-center mx-2"
+            }, [
+                React.createElement("div", { 
+                    key: "pointers",
+                    className: "absolute -top-10 left-0 right-0 flex justify-center h-10 w-full pointer-events-none" 
+                }, pointers && pointers.map(p => (
+                     React.createElement("div", { key: p.name, className: "relative w-0" },
+                         React.createElement(NullPointer, { name: p.name, colorInfo: p.color })
+                     )
+                ))),
+                React.createElement("div", { key: "block", className: "flex items-center self-center opacity-50 mt-8" }, [
+                    React.createElement("div", { key: "line", className: "h-[2px] w-4 bg-slate-300" }),
+                    React.createElement("div", { key: "box", className: "border-2 border-slate-300 rounded px-2 py-1 text-[10px] font-mono font-bold text-slate-400 bg-slate-50" }, "NULL")
+                ])
+            ])
+        ));
+        NullBlock.displayName = "NullBlock";
+
+        function LinkedListAnimator() {
+          const [list, setList] = useState([]); 
+          const [inputValue, setInputValue] = useState('');
+          const [targetValue, setTargetValue] = useState('');
+          const [selectedOp, setSelectedOp] = useState(OPS.ADD_FIRST);
+          const [language, setLanguage] = useState('java');
+          const [timeline, setTimeline] = useState([]);
+          const [currentStep, setCurrentStep] = useState(0);
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [speed, setSpeed] = useState(800);
+          const [message, setMessage] = useState("List is empty. Try adding a node.");
+          const [isFullscreen, setIsFullscreen] = useState(false);
+          const containerRef = useRef(null);
+
+          const currentSnapshot = timeline[currentStep] || {
+            listState: list,
+            pointers: { head: list.length > 0 ? list[0].id : null },
+            highlightLine: -1,
+            floatNodes: [],
+            returnInfo: null, 
+            variables: {},
+            gcNodeId: null,
+            activeLinkId: null,
+            isCounting: false
+          };
+
+          useEffect(() => {
+            const handleFullscreenChange = () => {
+              setIsFullscreen(!!document.fullscreenElement);
+            };
+            document.addEventListener("fullscreenchange", handleFullscreenChange);
+            return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+          }, []);
+
+          const toggleFullScreen = () => {
+            if (!document.fullscreenElement) {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.warn(`Full-screen unavailable: ${err.message}`);
+                    });
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(err => console.warn(err));
+                }
+            }
+          };
+
+          const generateTrace = (startList) => {
+            const steps = [];
+            const clone = (l) => JSON.parse(JSON.stringify(l));
+            let tempList = clone(startList);
+            
+            let activePointers = { 
+                head: tempList.length > 0 ? tempList[0].id : 'NULL',
+                lst: null,
+                current: null,
+                prev: null,
+                newNode: null 
+            };
+
+            const addStep = (pointerUpdates, lineNo, msg, floatNodes = [], overrideList = null, returnInfo = null, variables = {}, gcNodeId = null, activeLinkId = null, isCounting = false) => {
+              activePointers = { ...activePointers, ...pointerUpdates };
+
+              const currentState = overrideList || tempList;
+              const validNodeIds = new Set(currentState.map(n => n.id));
+              if (floatNodes) floatNodes.forEach(n => validNodeIds.add(n.id));
+
+              const displayPointers = {};
+              Object.keys(activePointers).forEach(key => {
+                  const target = activePointers[key];
+                  if (target === null) return;
+                  if (target === 'NULL') displayPointers[key] = 'NULL';
+                  else if (key === 'head') displayPointers[key] = target;
+                  else if (validNodeIds.has(target)) displayPointers[key] = target;
+              });
+
+              steps.push({
+                listState: currentState ? clone(currentState) : [],
+                pointers: { ...displayPointers },
+                highlightLine: lineNo,
+                message: msg,
+                floatNodes: floatNodes ? clone(floatNodes) : [],
+                returnInfo: returnInfo,
+                variables: variables,
+                gcNodeId: gcNodeId,
+                activeLinkId: activeLinkId,
+                isCounting: isCounting
+              });
+            };
+
+            const finishTrace = (pointerUpdates, msg, finalState, returnInfo = null, variables = {}) => {
+                const cleanedPointers = { 
+                    ...pointerUpdates, 
+                    lst: null, current: null, prev: null, newNode: null 
+                };
+                addStep(cleanedPointers, -1, msg, [], finalState, returnInfo, variables);
+            };
+
+            addStep({}, 0, "Start Operation");
+
+            if (selectedOp === OPS.ADD_FIRST) {
+              const newNodeId = 'new_' + Date.now() + Math.random();
+              const valInt = parseInt(inputValue) || 0;
+              const newNodeObj = { id: newNodeId, val: valInt, next: null };
+              
+              const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
+              
+              addStep({ lst: initHeadId }, 1, `Node newNode = new Node(${valInt})`, [newNodeObj]);
+              addStep({ newNode: newNodeId }, 2, "newNode.SetNext(lst)", [newNodeObj], null, null, {}, null, newNodeId);
+              
+              newNodeObj.next = (initHeadId === 'NULL') ? null : initHeadId;
+              const newList = [newNodeObj, ...tempList];
+              
+              addStep({ head: newNodeId }, 3, "return newNode", [], newList, { type: 'ref', value: 'newNode', nodeId: newNodeId });
+              finishTrace({ head: newNodeId }, "Operation Complete", newList);
+            }
+
+            else if (selectedOp === OPS.ADD_LAST) {
+                const newNodeId = 'new_' + Date.now() + Math.random();
+                const valInt = parseInt(inputValue) || 0;
+                const newNodeObj = { id: newNodeId, val: valInt, next: null };
+                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
+
+                addStep({ lst: initHeadId }, 1, "Check if lst == null");
+
+                if (tempList.length === 0) {
+                    addStep({}, 2, "lst == null -> True", [newNodeObj]);
+                    addStep({ head: newNodeId }, 2, "return new Node()", [newNodeObj], [newNodeObj], { type: 'ref', value: 'new Node', nodeId: newNodeId });
+                    finishTrace({ head: newNodeId }, "Operation Complete", [newNodeObj]);
+                } else {
+                    addStep({}, 2, "lst == null -> False");
+                    
+                    let curr = tempList[0];
+                    addStep({ current: curr.id }, 5, "Node current = lst");
+
+                    while (curr.next !== null) {
+                        addStep({}, 6, "current.GetNext() != null -> True");
+                        addStep({}, 7, "current = current.GetNext()");
+                        curr = tempList.find(n => n.id === curr.next);
+                        addStep({ current: curr.id }, 7, "Advanced current");
+                    }
+                    
+                    addStep({}, 6, "current.GetNext() != null -> False");
+                    
+                    addStep({ newNode: newNodeId }, 9, `current.SetNext(new Node(${valInt}))`, [newNodeObj], null, null, {}, null, curr.id);
+                    
+                    curr.next = newNodeId;
+                    tempList = [...tempList, newNodeObj];
+                    
+                    addStep({}, 10, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
+                    finishTrace({}, "Operation Complete", tempList);
+                }
+            }
+
+            else if (selectedOp === OPS.ADD_AFTER) {
+                let curr = tempList.length > 0 ? tempList[0] : null;
+                addStep({ current: curr ? curr.id : 'NULL' }, 1, "Node current = head");
+
+                while (curr && curr.val !== targetValue) {
+                    addStep({}, 2, `current.GetValue() (${curr.val}) != target (${targetValue})`);
+                    curr = tempList.find(n => n.id === curr.next);
+                    if (curr) {
+                         addStep({ current: curr.id }, 3, "current = current.GetNext()");
+                    } else {
+                         addStep({ current: 'NULL' }, 2, "current is null (Not Found)");
+                    }
+                }
+
+                if (curr) {
+                    const newNodeId = 'new_' + Date.now() + Math.random();
+                    const valInt = parseInt(inputValue) || 0;
+                    const newNodeObj = { id: newNodeId, val: valInt, next: null };
+                    
+                    addStep({}, 5, "Target found (current != null)");
+                    addStep({ newNode: newNodeId }, 6, `Node newNode = new Node(${valInt})`, [newNodeObj]);
+                    
+                    newNodeObj.next = curr.next; 
+                    addStep({}, 7, "newNode.SetNext(current.GetNext())", [newNodeObj], null, null, {}, null, newNodeId);
+                    
+                    const idx = tempList.findIndex(n => n.id === curr.id);
+                    curr.next = newNodeId; 
+                    tempList.splice(idx + 1, 0, newNodeObj); 
+                    
+                    addStep({}, 8, "current.SetNext(newNode)", [], tempList, null, {}, null, curr.id);
+                    finishTrace({}, "Done", tempList);
+                } else {
+                    addStep({}, 5, "if (current != null) -> False");
+                    finishTrace({}, "Done", tempList);
+                }
+            }
+
+            else if (selectedOp === OPS.ADD_BEFORE) {
+                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
+                addStep({ lst: initHeadId }, 1, "Check if lst == null");
+
+                if (tempList.length === 0) {
+                    addStep({}, 1, "lst is null -> True, return null");
+                    finishTrace({}, "Done", tempList, { type: 'ref', value: 'null', nodeId: null });
+                    return steps;
+                }
+
+                addStep({}, 1, "lst is null -> False");
+
+                if (tempList[0].val === targetValue) {
+                    addStep({}, 2, "lst.GetValue() == target -> True");
+                    addStep({}, 3, "return AddFirst(lst, val)"); 
+                    
+                    const newNodeId = 'new_' + Date.now() + Math.random();
+                    const valInt = parseInt(inputValue) || 0;
+                    const newNodeObj = { id: newNodeId, val: valInt, next: tempList[0].id };
+                    
+                    tempList = [newNodeObj, ...tempList];
+                    
+                    addStep({ head: newNodeId }, 3, "Returning new Head", [], tempList, { type: 'ref', value: 'new Head', nodeId: newNodeId });
+                    finishTrace({ head: newNodeId }, "Added First", tempList);
+                    return steps;
+                }
+                
+                addStep({}, 2, "lst.GetValue() == target -> False");
+
+                let prev = null;
+                let curr = tempList[0];
+                addStep({ current: curr.id, prev: 'NULL' }, 6, "Node prev = null, current = lst");
+
+                while(curr && curr.val !== targetValue) {
+                    addStep({}, 7, `Loop: current.GetValue() (${curr.val}) != target`);
+                    prev = curr;
+                    curr = tempList.find(n => n.id === curr.next);
+                    addStep({ current: curr ? curr.id : 'NULL', prev: prev.id }, 8, "prev = current; current = current.GetNext()");
+                }
+
+                if (curr) {
+                     const newNodeId = 'new_' + Date.now() + Math.random();
+                     const valInt = parseInt(inputValue) || 0;
+                     const newNodeObj = { id: newNodeId, val: valInt, next: curr.id };
+                     
+                     addStep({}, 10, "Target found (current != null)");
+                     addStep({ newNode: newNodeId }, 11, `Node newNode = new Node(${valInt})`, [newNodeObj]);
+                     addStep({}, 12, "newNode.SetNext(current)", [newNodeObj], null, null, {}, null, newNodeId);
+                     const prevIdx = tempList.findIndex(n => n.id === prev.id);
+                     prev.next = newNodeId;
+                     tempList.splice(prevIdx + 1, 0, newNodeObj);
+                     addStep({}, 13, "prev.SetNext(newNode)", [], tempList, null, {}, null, prev.id);
+                     
+                     addStep({}, 15, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
+                     finishTrace({}, "return lst", tempList);
+                } else {
+                     addStep({}, 10, "if (current != null) -> False");
+                     addStep({}, 15, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
+                     finishTrace({}, "return lst (Not found)", tempList);
+                }
+            }
+
+            else if (selectedOp === OPS.DELETE) {
+                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
+                addStep({ lst: initHeadId }, 1, "Check if lst == null");
+
+                if (tempList.length === 0) {
+                    addStep({}, 1, "lst is null -> True, return null");
+                    finishTrace({}, "Done", tempList, { type: 'ref', value: 'null', nodeId: null });
+                    return steps;
+                }
+                
+                if (tempList[0].val === targetValue) {
+                    addStep({}, 2, "lst.GetValue() == target -> True");
+                    
+                    const oldHead = tempList[0];
+                    const nextHeadId = tempList.length > 1 ? tempList[1].id : 'NULL';
+                    
+                    addStep({ head: nextHeadId }, 3, "return lst.GetNext()", [], tempList, { type: 'ref', value: 'next', nodeId: nextHeadId === 'NULL' ? null : nextHeadId }, {}, oldHead.id);
+                    
+                    const newList = [...tempList];
+                    newList.shift();
+                    
+                    finishTrace({ head: nextHeadId }, "Head Deleted", newList);
+                    return steps;
+                }
+
+                addStep({}, 2, "lst.GetValue() == target -> False");
+
+                let prev = null;
+                let curr = tempList[0];
+                addStep({ current: curr.id, prev: 'NULL' }, 6, "Init pointers: prev=null, curr=lst");
+
+                while (curr && curr.val !== targetValue) {
+                     addStep({}, 7, "Check loop condition (val != target)");
+                     prev = curr;
+                     curr = tempList.find(n => n.id === curr.next);
+                     addStep({ current: curr ? curr.id : 'NULL', prev: prev ? prev.id : 'NULL' }, 9, "Advance pointers");
+                }
+
+                if (curr) {
+                    addStep({}, 11, "Target found (curr != null)");
+                    const prevNode = tempList.find(n => n.id === prev.id);
+                    if (prevNode) {
+                        prevNode.next = curr.next;
+                    }
+                    addStep({}, 12, "prev.SetNext(current.GetNext()) - Link Broken", [], tempList, null, {}, null, prev.id);
+                    addStep({}, 13, "Garbage Collection...", [], tempList, null, {}, curr.id);
+
+                    const finalList = tempList.filter(n => n.id !== curr.id);
+                    
+                    addStep({}, 14, "return lst", [], finalList, { type: 'ref', value: 'lst', nodeId: initHeadId });
+                    finishTrace({ current: null, prev: null }, "Node removed", finalList);
+                } else {
+                    addStep({}, 11, "Target not found");
+                    addStep({}, 14, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
+                    finishTrace({}, "Done", tempList);
+                }
+            }
+
+            else if (selectedOp === OPS.FIND) {
+                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
+                addStep({ lst: initHeadId }, 1, "Method call Find(lst, target)");
+                let curr = tempList.length > 0 ? tempList[0] : null;
+                addStep({ current: initHeadId }, 2, "Node current = lst");
+                
+                while(curr) {
+                    addStep({}, 3, "current != null -> True");
+                    
+                    if (curr.val === targetValue) {
+                        addStep({}, 4, `current.GetValue() (${curr.val}) == target -> True`, [], null, curr.id);
+                        addStep({}, 5, "return true", [], null, { type: 'val', value: 'true', nodeId: curr.id });
+                        const finalPointers = { current: null, lst: null, head: activePointers.head };
+                        finishTrace(finalPointers, "Found match!", tempList);
+                        return steps;
+                    }
+                    addStep({}, 4, `current.GetValue() (${curr.val}) != target -> False`);
+                    curr = tempList.find(n => n.id === curr.next);
+                    addStep({ current: curr ? curr.id : 'NULL' }, 7, "current = current.GetNext()");
+                }
+                
+                addStep({}, 3, "current != null -> False");
+                addStep({}, 8, "return false", [], null, { type: 'val', value: 'false' });
+                finishTrace({ current: null, lst: null }, "Not found", tempList);
+            }
+
+            else if (selectedOp === OPS.COUNT) {
+                let count = 0;
+                let curr = tempList.length > 0 ? tempList[0] : null;
+                addStep({ current: curr ? curr.id : 'NULL' }, 1, "Init count=0, curr=head", [], null, null, { count: 0 });
+                
+                while(curr) {
+                     addStep({}, 3, "current != null", [], null, null, { count: count });
+                     // Count increment visual step
+                     count++;
+                     addStep({}, 4, `count++ (${count})`, [], null, null, { count: count }, null, null, true);
+                     curr = tempList.find(n => n.id === curr.next);
+                     addStep({ current: curr ? curr.id : 'NULL' }, 5, "current = current.GetNext()", [], null, null, { count: count });
+                }
+                addStep({}, 7, `return ${count}`, [], null, { type: 'val', value: count.toString() }, { count: count });
+                finishTrace({}, "Done", tempList, null, { count: count });
+            }
+
+            return steps;
+          };
+
+          useEffect(() => {
+            let timer;
+            if (isPlaying && currentStep < timeline.length - 1) {
+              timer = setTimeout(() => {
+                setCurrentStep(prev => prev + 1);
+              }, speed);
+            } else if (currentStep >= timeline.length - 1 && isPlaying) {
+              setIsPlaying(false);
+              const lastStep = timeline[timeline.length - 1];
+              if (lastStep && lastStep.listState) {
+                setList(lastStep.listState); 
+              }
+            }
+            return () => clearTimeout(timer);
+          }, [isPlaying, currentStep, timeline, speed]);
+
+          const handleRun = () => {
+            let startState = [...list];
+            if (timeline.length > 0) {
+                const lastStep = timeline[timeline.length - 1];
+                if (lastStep && lastStep.listState) {
+                    startState = lastStep.listState;
+                    setList(startState);
+                }
+            }
+            const trace = generateTrace(startState);
+            setTimeline(trace);
+            setCurrentStep(0);
+            setIsPlaying(true);
+            setInputValue(''); 
+            setTargetValue('');
+            setMessage("Running...");
+          };
+
+          const handleReset = () => {
+            setList([]);
+            setTimeline([]);
+            setCurrentStep(0);
+            setIsPlaying(false);
+            setMessage("List reset.");
+          };
+
+          return (
+            React.createElement("div", { ref: containerRef, className: "min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800" },
+              React.createElement("header", { className: "bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm z-30" },
+                React.createElement("div", { className: "flex items-center gap-3" },
+                  React.createElement("div", { className: "bg-indigo-600 text-white p-2 rounded-lg shadow-md" },
+                    React.createElement(MousePointer2, { size: 24 })
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("h1", { className: "text-2xl font-bold text-slate-900 tracking-tight" }, "Linked List Visualizer"),
+                    React.createElement("p", { className: "text-xs text-slate-500 font-medium" }, "Interactive DS Animation")
+                  )
+                ),
+                React.createElement("div", { className: "flex items-center gap-4" },
+                  React.createElement("button", {
+                    onClick: toggleFullScreen,
+                    className: "p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors",
+                    title: isFullscreen ? "Exit Full Screen" : "Full Screen"
+                  }, isFullscreen ? React.createElement(Minimize, { size: 20 }) : React.createElement(Maximize, { size: 20 })),
+                  React.createElement("div", { className: "flex bg-slate-100 p-1 rounded-lg border border-slate-200" },
+                    React.createElement("button", {
+                      onClick: () => setLanguage('java'),
+                      className: `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${language === 'java' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
+                    }, "Java"),
+                    React.createElement("button", {
+                      onClick: () => setLanguage('csharp'),
+                      className: `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${language === 'csharp' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
+                    }, "C#")
+                  )
+                )
+              ),
+              React.createElement("div", { className: "flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden" },
+                React.createElement("div", { className: "lg:col-span-3 flex flex-col gap-4" },
+                  React.createElement("div", { className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" },
+                    React.createElement("div", { className: "bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center gap-2" },
+                      React.createElement(Settings, { className: "text-slate-400", size: 18 }),
+                      React.createElement("h2", { className: "font-bold text-sm text-slate-700 uppercase tracking-wide" }, "Operations")
+                    ),
+                    React.createElement("div", { className: "p-4 space-y-4" },
+                      React.createElement("div", { className: "space-y-2" },
+                        React.createElement("label", { className: "text-xs font-semibold text-slate-400 uppercase" }, "Select Method"),
+                        React.createElement("div", { className: "relative" },
+                          React.createElement("select", {
+                            value: selectedOp,
+                            onChange: (e) => {
+                              setSelectedOp(e.target.value);
+                              setTimeline([]);
+                              setCurrentStep(0);
+                              setMessage("Ready.");
+                            },
+                            className: "w-full appearance-none bg-slate-50 border border-slate-300 text-slate-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-sm transition-shadow"
+                          }, Object.entries(OPS).map(([k, v]) => (
+                              React.createElement("option", { key: k, value: v }, v.replace(/([A-Z])/g, ' $1').trim())
+                          ))),
+                          React.createElement("div", { className: "absolute right-3 top-3 pointer-events-none text-slate-500" },
+                             React.createElement(Settings, { size: 14 })
+                          )
+                        )
+                      ),
+                      React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+                        selectedOp.toLowerCase().includes('add') && React.createElement("div", { className: "col-span-2 md:col-span-1" },
+                            React.createElement("label", { className: "text-[10px] font-bold text-slate-400 uppercase mb-1 block" }, "New Value"),
+                            React.createElement("input", {
+                                type: "text",
+                                className: "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none",
+                                value: inputValue,
+                                placeholder: "#",
+                                onChange: (e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^-?\d*$/.test(val)) {
+                                        setInputValue(val);
+                                    }
+                                }
+                            })
+                        ),
+                        ['addAfter', 'addBefore', 'delete', 'find'].includes(selectedOp) && React.createElement("div", { className: "col-span-2 md:col-span-1" },
+                            React.createElement("label", { className: "text-[10px] font-bold text-slate-400 uppercase mb-1 block" }, "Target"),
+                            React.createElement("input", {
+                                type: "number",
+                                className: "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none",
+                                value: targetValue,
+                                onChange: (e) => setTargetValue(parseInt(e.target.value) || 0)
+                            })
+                        )
+                      )
+                    )
+                  ),
+                  React.createElement("div", { className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col" },
+                    React.createElement("div", { className: "bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between" },
+                        React.createElement("div", { className: "flex items-center gap-2" },
+                            React.createElement(Play, { className: "text-slate-400", size: 18 }),
+                            React.createElement("h2", { className: "font-bold text-sm text-slate-700 uppercase tracking-wide" }, "Controls")
+                        ),
+                        React.createElement("button", { onClick: handleReset, title: "Clear List", className: "text-slate-400 hover:text-red-500 transition-colors" },
+                            React.createElement(RefreshCcw, { size: 16 })
+                        )
+                    ),
+                    React.createElement("div", { className: "p-4 flex flex-col justify-between flex-1 gap-6" },
+                        React.createElement("div", { className: "flex items-center justify-center gap-4" },
+                            React.createElement("button", { onClick: () => setCurrentStep(Math.max(0, currentStep - 1)), className: "p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors" },
+                                React.createElement(SkipBack, { size: 20 })
+                            ),
+                            React.createElement("button", {
+                                onClick: () => {
+                                    if (timeline.length === 0 || currentStep >= timeline.length - 1) {
+                                        handleRun();
+                                    } else {
+                                        setIsPlaying(!isPlaying);
+                                    }
+                                },
+                                className: `w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-all active:scale-95 ${isPlaying ? 'bg-orange-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`
+                            }, isPlaying ? React.createElement(Pause, { size: 24, fill: "currentColor" }) : React.createElement(Play, { size: 24, fill: "currentColor", className: "ml-1" })),
+                            React.createElement("button", { onClick: () => setCurrentStep(Math.min(timeline.length - 1, currentStep + 1)), className: "p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors" },
+                                React.createElement(SkipForward, { size: 20 })
+                            )
+                        ),
+                        React.createElement("div", { className: "space-y-2" },
+                            React.createElement("div", { className: "flex justify-between text-[10px] font-bold text-slate-400 uppercase" },
+                                React.createElement("span", null, "Slow"),
+                                React.createElement("span", null, "Fast")
+                            ),
+                            React.createElement("input", {
+                                type: "range", min: "100", max: "1500", step: "100",
+                                value: 1600 - speed,
+                                onChange: (e) => setSpeed(1600 - parseInt(e.target.value)),
+                                className: "w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            })
+                        ),
+                        React.createElement("div", { className: "bg-slate-900 rounded-lg p-3 font-mono text-xs text-green-400 border border-slate-800 min-h-[60px]" },
+                            React.createElement("span", { className: "text-slate-500 mr-2" }, ">"),
+                            currentSnapshot.message
+                        )
+                    )
+                  )
+                ),
+                React.createElement("div", { className: "lg:col-span-9 flex flex-col bg-slate-100 rounded-2xl border-4 border-white shadow-xl overflow-hidden relative" },
+                    React.createElement("div", { className: "flex-1 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] overflow-auto relative flex flex-col" },
+                        React.createElement("div", { className: "absolute top-4 right-4 flex gap-3 z-10 bg-white/80 backdrop-blur p-2 rounded-lg border border-slate-200 shadow-sm" },
+                            Object.entries(POINTER_COLORS).map(([key, colors]) => (
+                                React.createElement("div", { key: key, className: "flex items-center gap-1.5" },
+                                    React.createElement("div", { className: `w-2 h-2 rounded-full ${colors.bg}` }),
+                                    React.createElement("span", { className: `text-[10px] font-bold uppercase ${colors.text}` }, key)
+                                )
+                            ))
+                        ),
+                        currentSnapshot.variables && currentSnapshot.variables.count !== undefined && (
+                            React.createElement(motion.div, {
+                                key: currentSnapshot.variables.count,
+                                initial: { scale: 1 },
+                                animate: { scale: [1, 1.2, 1] },
+                                className: "absolute top-4 left-4 z-10 bg-white/80 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center"
+                            }, [
+                                React.createElement("span", { key: "l", className: "text-[10px] font-bold uppercase text-slate-400 mb-1 flex items-center gap-1" }, [
+                                    React.createElement(Calculator, { key: "i", size: 12 }), " Count"
+                                ]),
+                                React.createElement("span", { key: "v", className: "text-2xl font-mono font-bold text-indigo-600" }, currentSnapshot.variables.count)
+                            ])
+                        ),
+                        React.createElement("div", { className: "flex-1 min-h-[400px] flex items-center px-10 pt-16 pb-4 overflow-x-auto relative" },
+                            React.createElement(AnimatePresence, null, 
+                                currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'val' && (
+                                    React.createElement(motion.div, {
+                                        initial: { opacity: 0, y: 20, scale: 0.9 },
+                                        animate: { opacity: 1, y: 0, scale: 1 },
+                                        exit: { opacity: 0 },
+                                        className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-indigo-900/90 text-white p-6 rounded-2xl shadow-2xl border border-indigo-500/50 backdrop-blur-sm flex flex-col items-center gap-2"
+                                    }, [
+                                        React.createElement("div", { key: "t", className: "text-xs uppercase tracking-widest font-bold text-indigo-300" }, "Method Returns"),
+                                        React.createElement("div", { key: "v", className: "text-4xl font-mono font-bold text-white flex items-center gap-3" }, [
+                                            React.createElement(CornerDownLeft, { key: "i", className: "opacity-50" }),
+                                            currentSnapshot.returnInfo.value
+                                        ])
+                                    ])
+                                )
+                            ),
+                            React.createElement("div", { className: "flex flex-col items-center mr-6 relative" },
+                                currentSnapshot.pointers.head && currentSnapshot.pointers.head !== 'NULL' ? (
+                                    React.createElement(motion.div, { initial: {opacity:0}, animate: {opacity:1}, className: "flex flex-col items-center" }, [
+                                        React.createElement("span", { key: "l", className: "text-xs font-bold uppercase mb-1 text-purple-600" }, "Head"),
+                                        React.createElement("div", { key: "d", className: "w-3 h-3 rounded-full bg-purple-600 mb-1" }),
+                                        React.createElement("div", { key: "ln", className: "h-8 w-0.5 bg-purple-600" }),
+                                        React.createElement("div", { key: "a", className: "w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-purple-600" })
+                                    ])
+                                ) : (
+                                    React.createElement("div", { className: "flex flex-col items-center opacity-50" }, [
+                                        React.createElement("span", { className: "text-xs font-bold uppercase mb-1 text-slate-400" }, "Head"),
+                                        React.createElement("div", { className: "w-3 h-3 rounded-full bg-slate-300" }),
+                                        React.createElement("div", { className: "mt-2 text-xs font-mono text-slate-400" }, "null")
+                                    ])
+                                )
+                            ),
+                            React.createElement(AnimatePresence, { mode: 'popLayout' },
+                                currentSnapshot.listState.map((node) => {
+                                    const isNew = currentSnapshot.pointers.newNode === node.id;
+                                    const isReturnedRef = currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'ref' && currentSnapshot.returnInfo.nodeId === node.id;
+                                    const isFound = currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'val' && currentSnapshot.returnInfo.nodeId === node.id;
+                                    const isGC = currentSnapshot.gcNodeId === node.id;
+                                    const isActiveLink = currentSnapshot.activeLinkId === node.id;
+                                    const showPlusOne = currentSnapshot.isCounting && currentSnapshot.pointers.current === node.id;
+
+                                    return React.createElement(motion.div, {
+                                        key: node.id,
+                                        layout: true,
+                                        initial: { opacity: 0, scale: 0.8, y: 20 },
+                                        animate: (isReturnedRef || isFound) ? { scale: 1.05, opacity: 1, y: 0, transition: { scale: { duration: 0.4, repeat: Infinity, repeatType: "reverse" } } } : isGC ? { opacity: 0.5, scale: 0.9, y: 10 } : { opacity: 1, scale: 1, y: 0 },
+                                        exit: { opacity: 0, scale: 0.8, y: -20 },
+                                        transition: { type: "spring", stiffness: 400, damping: 25 },
+                                        className: "flex items-start group"
+                                    }, [
+                                        React.createElement("div", { key: "node-wrapper", className: "relative mx-1" }, [
+                                            currentSnapshot.pointers.lst === node.id && React.createElement(NodePointer, { name: "lst", colorInfo: POINTER_COLORS.lst }),
+                                            currentSnapshot.pointers.current === node.id && React.createElement(NodePointer, { name: "curr", colorInfo: POINTER_COLORS.current }),
+                                            currentSnapshot.pointers.prev === node.id && React.createElement(NodePointer, { name: "prev", colorInfo: POINTER_COLORS.prev }),
+                                            currentSnapshot.pointers.newNode === node.id && React.createElement(NodePointer, { name: "newNode", colorInfo: POINTER_COLORS.newNode }),
+                                            
+                                            React.createElement("div", {
+                                                className: `flex w-36 h-20 rounded-lg shadow-md border-2 overflow-hidden z-10 relative transition-colors duration-300
+                                                ${isNew ? 'border-green-400 bg-green-50' : ''}
+                                                ${isReturnedRef ? 'border-indigo-500 bg-indigo-50 shadow-indigo-200 ring-2 ring-indigo-200' : ''}
+                                                ${isFound ? 'border-green-500 bg-green-50 shadow-green-200' : ''}
+                                                ${isGC ? 'border-red-300 bg-red-50 border-dashed opacity-80' : ''}
+                                                ${!isNew && !isReturnedRef && !isFound && !isGC ? 'bg-white border-slate-300' : ''}`
+                                            }, [
+                                                React.createElement("div", { className: `flex-1 flex flex-col items-center justify-center border-r transition-colors duration-300 ${isReturnedRef ? 'border-indigo-200' : isGC ? 'border-red-200' : 'border-slate-200'} ` }, [
+                                                    React.createElement("span", { className: `text-[9px] font-bold uppercase tracking-wider mb-1 ${isReturnedRef ? 'text-indigo-600' : isGC ? 'text-red-400' : 'text-slate-400'}` }, "Value"),
+                                                    React.createElement("span", { className: `text-xl font-bold font-mono ${isReturnedRef ? 'text-indigo-800' : isGC ? 'text-red-800 decoration-line-through' : 'text-slate-800'}` }, node.val)
+                                                ]),
+                                                React.createElement("div", { className: `w-12 flex flex-col items-center justify-center transition-colors duration-300 ${isReturnedRef ? 'bg-indigo-100' : isGC ? 'bg-red-50' : 'bg-slate-100 hover:bg-slate-200'} ` }, [
+                                                    React.createElement("span", { className: `text-[8px] font-bold uppercase tracking-wider mb-1 ${isReturnedRef ? 'text-indigo-600' : isGC ? 'text-red-400' : 'text-slate-400'}` }, "Next"),
+                                                    React.createElement("div", { className: `w-2.5 h-2.5 rounded-full shadow-sm ring-2 ${isReturnedRef ? 'bg-indigo-600 ring-indigo-300' : isGC ? 'bg-red-400 ring-red-200' : 'bg-slate-800 ring-slate-300'} ` })
+                                                ]),
+                                                React.createElement(AnimatePresence, null, showPlusOne && (
+                                                    React.createElement(motion.div, {
+                                                        initial: { opacity: 0, y: 0, x: -10 },
+                                                        animate: { opacity: [0, 1, 0], y: -40, x: -40 },
+                                                        exit: { opacity: 0 },
+                                                        transition: { duration: 0.8, ease: "easeOut" },
+                                                        className: "absolute top-0 left-0 text-indigo-600 font-bold text-lg z-50 flex items-center pointer-events-none"
+                                                    }, [ React.createElement(Plus, { size: 16 }), " 1" ])
+                                                )),
+                                                isReturnedRef && React.createElement(motion.div, {
+                                                    initial: { scale: 0 }, animate: { scale: 1 },
+                                                    className: "absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1 whitespace-nowrap"
+                                                }, [ React.createElement(CornerDownLeft, { size: 10 }), " RETURN REF" ]),
+                                                isFound && React.createElement(motion.div, {
+                                                    initial: { scale: 0 }, animate: { scale: 1 },
+                                                    className: "absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1 whitespace-nowrap"
+                                                }, [ React.createElement(CheckCircle2, { size: 10 }), " MATCH" ]),
+                                                isGC && React.createElement(motion.div, {
+                                                    initial: { scale: 0, rotate: -20 }, animate: { scale: 1, rotate: 0 },
+                                                    className: "absolute inset-0 flex items-center justify-center bg-white/50 z-30"
+                                                }, React.createElement("div", { className: "bg-red-100 p-2 rounded-full border border-red-200 shadow-sm" }, React.createElement(Trash2, { size: 20, className: "text-red-500" })))
+                                            ]),
+                                            React.createElement("div", { className: "text-center mt-2" },
+                                                React.createElement("span", { className: "text-[10px] font-mono text-slate-400 bg-white px-1.5 rounded border border-slate-100" }, `#${node.id.split('_')[1] || node.id}`)
+                                            )
+                                        ]),
+                                        node.next ? React.createElement(LinkArrow, { key: `arrow-${node.id}-${node.next}`, isModified: isActiveLink }) : React.createElement(NullBlock, { key: `null-${node.id}` })
+                                    ])
+                                }),
+                                currentSnapshot.listState.length === 0 && React.createElement(NullBlock, { key: "null-list", pointers: [currentSnapshot.pointers.lst === 'NULL' ? {name: 'lst', color: POINTER_COLORS.lst} : null].filter(Boolean) }),
+                                currentSnapshot.floatNodes && currentSnapshot.floatNodes.map(node => (
+                                    React.createElement(motion.div, {
+                                        key: `float-${node.id}`,
+                                        layout: true,
+                                        initial: { opacity: 0, y: -50 },
+                                        animate: { opacity: 1, y: -80, x: 20 },
+                                        exit: { opacity: 0 },
+                                        className: "absolute left-20 z-20 pointer-events-none"
+                                    }, React.createElement("div", { className: "relative" }, [
+                                        React.createElement(NodePointer, { name: "newNode", colorInfo: POINTER_COLORS.newNode }),
+                                        React.createElement("div", { className: "flex w-36 h-20 bg-yellow-50 rounded-lg shadow-xl border-2 border-dashed border-yellow-400 overflow-hidden" }, [
+                                            React.createElement("div", { className: "flex-1 flex flex-col items-center justify-center border-r border-yellow-200" }, [
+                                                React.createElement("span", { className: "text-[9px] font-bold text-yellow-600 uppercase mb-1" }, "Value"),
+                                                React.createElement("span", { className: "text-xl font-bold font-mono text-slate-800" }, node.val)
+                                            ]),
+                                            React.createElement("div", { className: "w-12 bg-yellow-100/50 flex flex-col items-center justify-center" }, 
+                                                React.createElement("div", { className: "w-2.5 h-2.5 rounded-full bg-slate-400" })
+                                            )
+                                        ])
+                                    ]))
+                                ))
+                            )
+                        )
+                    )
+                ),
+                React.createElement("div", { className: "lg:col-span-12 h-64 bg-slate-900 border-t border-slate-700 flex flex-col mt-4 rounded-xl shadow-lg overflow-hidden" },
+                    React.createElement("div", { className: "flex items-center justify-between px-4 py-2 bg-slate-950 text-slate-400 border-b border-slate-800" },
+                        React.createElement("div", { className: "flex items-center gap-2" },
+                            React.createElement(Code, { size: 16 }),
+                            React.createElement("span", { className: "text-xs font-bold uppercase tracking-wider" }, `${language} Implementation`)
+                        ),
+                        React.createElement("div", { className: "text-xs font-mono" }, `Line: ${currentSnapshot.highlightLine > -1 ? currentSnapshot.highlightLine : '--'}`)
+                    ),
+                    React.createElement("div", { className: "flex-1 overflow-y-auto p-4 font-mono text-sm" },
+                        CODE_DATA[language][selectedOp].split('\n').map((line, idx) => (
+                            React.createElement("div", {
+                                key: idx,
+                                className: `flex px-2 py-0.5 rounded transition-colors duration-200 ${idx + 1 === currentSnapshot.highlightLine ? 'bg-yellow-900/40 text-yellow-100 border-l-2 border-yellow-500' : 'text-slate-400'}`
+                            }, [
+                                React.createElement("span", { className: "w-8 text-right mr-4 text-slate-600 select-none text-xs leading-5" }, idx + 1),
+                                React.createElement("pre", { className: "whitespace-pre bg-transparent p-0 m-0 leading-5" }, line)
+                            ])
+                        ))
+                    )
+                )
+              )
+            )
+          );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(React.createElement(LinkedListAnimator));
+    </script>
+</body>
+</html>
