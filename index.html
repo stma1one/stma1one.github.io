@@ -17,6 +17,18 @@
       .font-mono { direction: ltr; }
     </style>
 
+    <!-- Basic Protection Script -->
+    <script>
+      document.addEventListener('contextmenu', event => event.preventDefault());
+      document.onkeydown = function(e) {
+        if(e.key == 123) return false; // F12
+        if(e.ctrlKey && e.shiftKey && e.key == 'I') return false; // Ctrl+Shift+I
+        if(e.ctrlKey && e.shiftKey && e.key === 'C') return false; // Ctrl+Shift+C
+        if(e.ctrlKey && e.shiftKey && e.key === 'J') return false; // Ctrl+Shift+J
+        if(e.ctrlKey && e.key === 'U') return false; // Ctrl+U
+      }
+    </script>
+
     <!-- Import Map to handle external libraries -->
     <script type="importmap">
 {
@@ -371,6 +383,8 @@
                     node.isMatch = true; 
                     this.addFrame(5); // if check (true)
                     node.isDeleted = true;
+                    // Void method, do not set returnValue
+                    // Skip push
                 } else { 
                     this.addFrame(5); // if check (false)
                     this.tempStack.push(node); 
@@ -412,6 +426,7 @@
             const bottomNode = this.tempStack.pop(); 
             if (bottomNode) {
                 bottomNode.isDeleted = true;
+                // Void method, do not set returnValue
                 this.addFrame(6); // temp.pop()
             } 
             
@@ -1257,7 +1272,9 @@
         }, [currentFrameIndex, frames]);
 
         const handleGenerate = () => { 
+            // Disable generation for Binary Tree
             if (activeDS === DATA_STRUCTURES.BINARY_TREE) return;
+
             setFrames([]); 
             setIsPlaying(false); 
             setVariables({}); 
@@ -1271,6 +1288,7 @@
         const handleClear = () => { setNodes([]); setDetachedNodes([]); setPointers({}); setFrames([]); setIsPlaying(false); setReturnValue(null); setMiniMap(null); };
 
         const runOperation = () => {
+          // Disable operations for Binary Tree
           if (activeDS === DATA_STRUCTURES.BINARY_TREE) return;
           if (!selectedMethod) return; 
           
@@ -1325,6 +1343,7 @@
         const safeCodeSnippet = CODE_SNIPPETS[activeDS]?.[selectedMethod]?.[lang] || "// Code unavailable";
 
         const renderVisuals = () => {
+            // Binary Tree - Under Construction View
             if (activeDS === DATA_STRUCTURES.BINARY_TREE) {
                 return (
                     <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50/50">
@@ -1346,6 +1365,7 @@
                         <AnimatePresence>{returnValue !== null && <ResultOverlay returnValue={returnValue} onDismiss={() => setReturnValue(null)} />}</AnimatePresence>
                         <VariablesDisplay variables={variables} />
                         
+                        {/* Queue Container */}
                         <div className="w-full max-w-4xl flex flex-col gap-1 overflow-hidden mt-20">
                           <div className="flex justify-between px-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
                              <span>Exit / Head</span>
