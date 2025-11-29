@@ -3,1084 +3,1512 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>פעולות על שרשרת חוליות - הדמיה</title>
-    
-    <!-- 1. Load Tailwind CSS -->
+    <title>סימולטור מבנה נתונים לפי מחלקות בגרות</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
-    <!-- 2. React & ReactDOM -->
-    <script type="importmap">
-      {
-        "imports": {
-          "react": "https://esm.sh/react@18.2.0",
-          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-          "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom",
-          "lucide-react": "https://esm.sh/lucide-react@0.292.0?external=react,react-dom"
-        }
-      }
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
-      /* Custom scrollbar for code block */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #0f172a; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155; 
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
-      }
-      /* RTL support tweaks */
-      body {
-        font-family: system-ui, -apple-system, sans-serif;
-      }
+      body { font-family: 'Inter', sans-serif; }
+      pre, code { font-family: 'JetBrains Mono', monospace; direction: ltr; }
+      /* Force LTR for code blocks even in RTL document */
+      .font-mono { direction: ltr; }
     </style>
+
+    <!-- Import Map to handle external libraries -->
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom",
+    "lucide-react": "https://esm.sh/lucide-react@0.292.0?external=react,react-dom",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+  }
+}
+</script>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="bg-slate-50">
     <div id="root"></div>
 
-    <!-- 3. Application Logic -->
-    <script type="module">
-        import React, { useState, useEffect, useRef, forwardRef } from 'react';
-        import { createRoot } from 'react-dom/client';
-        import { motion, AnimatePresence } from 'framer-motion';
-        import { 
-          Play, Pause, SkipBack, SkipForward, RefreshCcw, 
-          Settings, Code, MousePointer2, CheckCircle2, CornerDownLeft, Calculator,
-          Trash2, Maximize, Minimize, Plus, Sparkles, Loader2, MessageSquare 
-        } from 'lucide-react';
+    <script type="text/babel" data-type="module">
+      import React, { useState, useEffect } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { motion, AnimatePresence } from 'framer-motion';
+      import { 
+        Play, Pause, SkipBack, SkipForward, ArrowRight, ArrowLeft, 
+        ArrowDownToLine, Layers, Code, PlusCircle, Trash2, Hash, 
+        Network, ZoomIn, ZoomOut, Minimize2, Maximize2, Construction 
+      } from 'lucide-react';
 
-        // --- CONSTANTS & CONFIG ---
+      // ==========================================
+      // CONSTANTS
+      // ==========================================
+      const COLORS = {
+        head: "text-purple-600 border-purple-600 bg-purple-100",
+        lst: "text-indigo-600 border-indigo-600 bg-indigo-100",
+        current: "text-blue-600 border-blue-600 bg-blue-100",
+        prev: "text-orange-600 border-orange-600 bg-orange-100",
+        newNode: "text-green-600 border-green-600 bg-green-100",
+        top: "text-pink-600 border-pink-600 bg-pink-100",
+        root: "text-purple-600 border-purple-600 bg-purple-100",
+        temp: "text-slate-500 border-slate-500 bg-slate-200", 
+        default: "bg-white border-slate-300 text-slate-700"
+      };
 
-        const OPS = {
-          ADD_FIRST: 'addFirst',
-          ADD_LAST: 'addLast',
-          ADD_AFTER: 'addAfter',
-          ADD_BEFORE: 'addBefore',
-          DELETE: 'delete',
-          FIND: 'find',
-          COUNT: 'count'
-        };
+      const DATA_STRUCTURES = {
+        LINKED_LIST: 'Node<T>',
+        STACK: 'Stack<T>',
+        QUEUE: 'Queue<T>',
+        BINARY_TREE: 'BinNode<T>'
+      };
 
-        const POINTER_COLORS = {
-          lst: { bg: 'bg-indigo-500', text: 'text-indigo-500' }, 
-          current: { bg: 'bg-blue-600', text: 'text-blue-600' },
-          prev: { bg: 'bg-orange-600', text: 'text-orange-600' },
-          newNode: { bg: 'bg-green-600', text: 'text-green-600' }
-        };
+      const BTN_STYLES = {
+        primary: "px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-colors shadow-sm w-full flex items-center justify-center gap-2",
+      };
 
-        // --- CODE TEMPLATES ---
+      const OPS_CONFIG = {
+        [DATA_STRUCTURES.LINKED_LIST]: [
+          { value: 'addFirst', label: 'Add First', params: ['val'] },
+          { value: 'addLast', label: 'Add Last', params: ['val'] },
+          { value: 'addAfter', label: 'Add After', params: ['target', 'val'] },
+          { value: 'addBefore', label: 'Add Before', params: ['target', 'val'] },
+          { value: 'find', label: 'Find', params: ['target'] },
+          { value: 'delete', label: 'Delete', params: ['target'] },
+          { value: 'count', label: 'Count (Iterative)', params: [] },
+          { value: 'recursiveCount', label: 'Count (Recursive)', params: [] },
+        ],
+        [DATA_STRUCTURES.STACK]: [
+          { value: 'push', label: 'Push', params: ['val'] },
+          { value: 'pop', label: 'Pop', params: [] },
+          { value: 'removeVal', label: 'Remove (Val)', params: ['target'] },
+          { value: 'removeLast', label: 'Remove Last', params: [] },
+          { value: 'count', label: 'Count (Static)', params: [] },
+          { value: 'recursiveCount', label: 'Count (Recursive)', params: [] },
+        ],
+        [DATA_STRUCTURES.QUEUE]: [
+           { value: 'insert', label: 'Insert', params: ['val'] },
+           { value: 'remove', label: 'Remove', params: [] },
+           { value: 'removeVal', label: 'Remove (Val)', params: ['target'] },
+           { value: 'removeLast', label: 'Remove Last', params: [] },
+           { value: 'count', label: 'Count (Static)', params: [] },
+           { value: 'recursiveCount', label: 'Count (Recursive)', params: [] },
+        ],
+        [DATA_STRUCTURES.BINARY_TREE]: [
+          { value: 'insert', label: 'Insert (BST)', params: ['val'] },
+          { value: 'find', label: 'Find', params: ['target'] },
+          { value: 'count', label: 'Count Nodes', params: [] },
+          { value: 'countLeaves', label: 'Count Leaves', params: [] },
+        ]
+      };
 
-        const CODE_DATA = {
-          java: {
-            addFirst: `public Node<Integer> addFirst(Node<Integer> lst, int val) {
-    Node<Integer> newNode = new Node<>(val);
-    newNode.setNext(lst);
-    return newNode; // Returns new head reference
-}`,
-            addLast: `public Node<Integer> addLast(Node<Integer> lst, int val) {
-    if (lst == null) {
-        return new Node<>(val);
-    }
-    Node<Integer> current = lst;
-    while (current.getNext() != null) {
-        current = current.getNext();
-    }
-    current.setNext(new Node<>(val));
-    return lst; // Return original head reference
-}`,
-            addAfter: `public void addAfter(int target, int val) {
-    Node current = head;
-    while (current != null && current.getValue() != target) {
-        current = current.getNext();
-    }
-    if (current != null) {
-        Node newNode = new Node(val);
-        newNode.setNext(current.getNext());
-        current.setNext(newNode);
-    }
-}`,
-            addBefore: `public Node<Integer> addBefore(Node<Integer> lst, int target, int val) {
-    if (lst == null) return null;
-    if (lst.getValue() == target) {
-        return addFirst(lst, val);
-    }
-    Node<Integer> prev = null;
-    Node<Integer> current = lst;
-    while (current != null && current.getValue() != target) {
-        prev = current;
-        current = current.getNext();
-    }
-    if (current != null) {
-        Node<Integer> newNode = new Node<>(val);
-        newNode.setNext(current);
-        prev.setNext(newNode);
-    }
-    return lst; // Return reference
-}`,
-            delete: `public Node<Integer> delete(Node<Integer> lst, int target) {
-    if (lst == null) return null;
-    if (lst.getValue() == target) {
-        return lst.getNext(); // Head deleted, return next
-    }
-    Node<Integer> prev = null;
-    Node<Integer> current = lst;
-    while (current != null && current.getValue() != target) {
-        prev = current;
-        current = current.getNext();
-    }
-    if (current != null) {
-        prev.setNext(current.getNext());
-    }
-    return lst;
-}`,
-            find: `public boolean find(Node<Integer> lst, int target) {
-    Node<Integer> current = lst;
-    while (current != null) {
-        if (current.getValue() == target) {
-            return true;
-        }
-        current = current.getNext();
-    }
-    return false;
-}`,
-            count: `public int count() {
-    int count = 0;
-    Node current = head;
-    while (current != null) {
-        count++;
-        current = current.getNext();
-    }
-    return count;
-}`
+      const CODE_SNIPPETS = {
+        [DATA_STRUCTURES.LINKED_LIST]: {
+          addFirst: { 
+            java: `public static Node<Integer> addFirst(Node<Integer> lst, int val) {\n  Node<Integer> p = new Node<Integer>(val);\n  p.setNext(lst);\n  return p;\n}`, 
+            csharp: `public static Node<int> AddFirst(Node<int> lst, int val) {\n  Node<int> p = new Node<int>(val);\n  p.SetNext(lst);\n  return p;\n}` 
           },
-          csharp: {
-            addFirst: `public Node<int> AddFirst(Node<int> lst, int val) {
-    Node<int> newNode = new Node<int>(val);
-    newNode.SetNext(lst);
-    return newNode; // Returns new head reference
-}`,
-            addLast: `public Node<int> AddLast(Node<int> lst, int val) {
-    if (lst == null) {
-        return new Node<int>(val);
-    }
-    Node<int> current = lst;
-    while (current.GetNext() != null) {
-        current = current.GetNext();
-    }
-    current.SetNext(new Node<int>(val));
-    return lst; // Return original head reference
-}`,
-            addAfter: `public void AddAfter(int target, int val) {
-    Node current = head;
-    while (current != null && current.GetValue() != target) {
-        current = current.GetNext();
-    }
-    if (current != null) {
-        Node newNode = new Node(val);
-        newNode.SetNext(current.GetNext());
-        current.SetNext(newNode);
-    }
-}`,
-            addBefore: `public Node<int> AddBefore(Node<int> lst, int target, int val) {
-    if (lst == null) return null;
-    if (lst.GetValue() == target) {
-        return AddFirst(lst, val);
-    }
-    Node<int> prev = null;
-    Node<int> current = lst;
-    while (current != null && current.GetValue() != target) {
-        prev = current;
-        current = current.GetNext();
-    }
-    if (current != null) {
-        Node<int> newNode = new Node<int>(val);
-        newNode.SetNext(current);
-        prev.SetNext(newNode);
-    }
-    return lst; // Return reference
-}`,
-            delete: `public Node<int> Delete(Node<int> lst, int target) {
-    if (lst == null) return null;
-    if (lst.GetValue() == target) {
-        return lst.GetNext(); // Head deleted, return next
-    }
-    Node<int> prev = null;
-    Node<int> current = lst;
-    while (current != null && current.GetValue() != target) {
-        prev = current;
-        current = current.GetNext();
-    }
-    if (current != null) {
-        prev.SetNext(current.GetNext());
-    }
-    return lst;
-}`,
-            find: `public bool Find(Node<int> lst, int target) {
-    Node<int> current = lst;
-    while (current != null) {
-        if (current.GetValue() == target) {
-            return true;
+          addLast: { 
+            java: `public static Node<Integer> addLast(Node<Integer> lst, int val) {\n  if (lst == null) \n    return new Node<Integer>(val);\n  Node<Integer> p = lst;\n  while (p.getNext() != null) \n    p = p.getNext();\n  p.setNext(new Node<Integer>(val));\n  return lst;\n}`, 
+            csharp: `public static Node<int> AddLast(Node<int> lst, int val) {\n  if (lst == null) \n    return new Node<int>(val);\n  Node<int> p = lst;\n  while (p.GetNext() != null) \n    p = p.GetNext();\n  p.SetNext(new Node<int>(val));\n  return lst;\n}` 
+          },
+          find: { 
+            java: `public static boolean find(Node<Integer> lst, int target) {\n  Node<Integer> p = lst;\n  while (p != null) {\n    if (p.getValue() == target) \n      return true;\n    p = p.getNext();\n  }\n  return false;\n}`, 
+            csharp: `public static bool Find(Node<int> lst, int target) {\n  Node<int> p = lst;\n  while (p != null) {\n    if (p.GetValue() == target) \n      return true;\n    p = p.GetNext();\n  }\n  return false;\n}` 
+          },
+          delete: { 
+            java: `public static Node<Integer> delete(Node<Integer> lst, int target) {\n  if (lst == null) \n    return null;\n  if (lst.getValue() == target) \n    return lst.getNext();\n  Node<Integer> prev = lst;\n  while (prev.getNext() != null) {\n    if (prev.getNext().getValue() == target) {\n       prev.setNext(prev.getNext().getNext());\n       return lst;\n    }\n    prev = prev.getNext();\n  }\n  return lst;\n}`, 
+            csharp: `public static Node<int> Delete(Node<int> lst, int target) {\n  if (lst == null) \n    return null;\n  if (lst.GetValue() == target) \n    return lst.GetNext();\n  Node<int> prev = lst;\n  while (prev.GetNext() != null) {\n    if (prev.GetNext().GetValue() == target) {\n       prev.SetNext(prev.GetNext().GetNext());\n       return lst;\n    }\n    prev = prev.GetNext();\n  }\n  return lst;\n}` 
+          },
+          count: { 
+            java: `public static int count(Node<Integer> lst) {\n  int c = 0;\n  for (Node<Integer> p = lst; p != null; p = p.getNext())\n    c++;\n  return c;\n}`, 
+            csharp: `public static int Count(Node<int> lst) {\n  int c = 0;\n  for (Node<int> p = lst; p != null; p = p.GetNext())\n    c++;\n  return c;\n}` 
+          },
+          recursiveCount: { 
+            java: `public static int recursiveCount(Node<Integer> p) {\n  if (p == null) \n    return 0;\n  return 1 + recursiveCount(p.getNext());\n}`, 
+            csharp: `public static int RecursiveCount(Node<int> p) {\n  if (p == null) \n    return 0;\n  return 1 + RecursiveCount(p.GetNext());\n}` 
+          },
+          addAfter: { 
+            java: `public static void addAfter(Node<Integer> lst, int target, int val) {\n  Node<Integer> p = lst;\n  while (p != null) {\n    if (p.getValue() == target) {\n       Node<Integer> temp = new Node<Integer>(val);\n       temp.setNext(p.getNext());\n       p.setNext(temp);\n       return;\n    }\n    p = p.getNext();\n  }\n}`, 
+            csharp: `public static void AddAfter(Node<int> lst, int target, int val) {\n  Node<int> p = lst;\n  while (p != null) {\n    if (p.getValue() == target) {\n       Node<int> temp = new Node<int>(val);\n       temp.SetNext(p.GetNext());\n       p.SetNext(temp);\n       return;\n    }\n    p = p.GetNext();\n  }\n}` 
+          },
+          addBefore: { 
+            java: `public static Node<Integer> addBefore(Node<Integer> lst, int target, int val) {\n  if (lst == null) \n    return null;\n  if (lst.getValue() == target) {\n    Node<Integer> p = new Node<Integer>(val);\n    p.setNext(lst);\n    return p;\n  }\n  Node<Integer> prev = lst;\n  while (prev.getNext() != null) {\n    if (prev.getNext().getValue() == target) {\n      Node<Integer> temp = new Node<Integer>(val);\n      temp.setNext(prev.getNext());\n      prev.setNext(temp);\n      return lst;\n    }\n    prev = prev.getNext();\n  }\n  return lst;\n}`, 
+            csharp: `public static Node<int> AddBefore(Node<int> lst, int target, int val) {\n  if (lst == null) \n    return null;\n  if (lst.GetValue() == target) {\n    Node<int> p = new Node<int>(val);\n    p.SetNext(lst);\n    return p;\n  }\n  Node<int> prev = lst;\n  while (prev.GetNext() != null) {\n    if (prev.GetNext().GetValue() == target) {\n      Node<int> temp = new Node<int>(val);\n      temp.SetNext(prev.GetNext());\n      prev.SetNext(temp);\n      return lst;\n    }\n    prev = prev.GetNext();\n  }\n  return lst;\n}` 
+          }
+        },
+        [DATA_STRUCTURES.STACK]: {
+          push: { 
+            java: `public static void push(Stack<Integer> s, int val) {\n  s.push(val);\n}`, 
+            csharp: `public static void Push(Stack<int> s, int val) {\n  s.Push(val);\n}` 
+          },
+          pop: { 
+            java: `public static int pop(Stack<Integer> s) {\n  return s.pop();\n}`, 
+            csharp: `public static int Pop(Stack<int> s) {\n  return s.Pop();\n}` 
+          },
+          count: { 
+            java: `public static int count(Stack<Integer> s) {\n  Stack<Integer> temp = new Stack<Integer>();\n  int c = 0;\n  while (!s.isEmpty()) {\n    temp.push(s.pop());\n    c++;\n  }\n  while (!temp.isEmpty()) \n    s.push(temp.pop());\n  return c;\n}`, 
+            csharp: `public static int Count(Stack<int> s) {\n  Stack<int> temp = new Stack<int>();\n  int c = 0;\n  while (!s.IsEmpty()) {\n    temp.Push(s.Pop());\n    c++;\n  }\n  while (!temp.IsEmpty()) \n    s.Push(temp.Pop());\n  return c;\n}` 
+          },
+          removeVal: { 
+            java: `public static void remove(Stack<Integer> s, int val) {\n  Stack<Integer> temp = new Stack<Integer>();\n  while(!s.isEmpty()) {\n    int x = s.pop();\n    if (x != val) \n      temp.push(x);\n  }\n  while(!temp.isEmpty()) \n    s.push(temp.pop());\n}`, 
+            csharp: `public static void Remove(Stack<int> s, int val) {\n  Stack<int> temp = new Stack<int>();\n  while(!s.IsEmpty()) {\n    int x = s.Pop();\n    if (x != val) \n      temp.Push(x);\n  }\n  while(!temp.IsEmpty()) \n    s.Push(temp.Pop());\n}` 
+          },
+          removeLast: { 
+            java: `public static void removeLast(Stack<Integer> s) {\n  Stack<Integer> temp = new Stack<Integer>();\n  while(!s.isEmpty()) \n    temp.push(s.pop());\n  if (!temp.isEmpty()) \n    temp.pop();\n  while(!temp.isEmpty()) \n    s.push(temp.pop());\n}`, 
+            csharp: `public static void RemoveLast(Stack<int> s) {\n  Stack<int> temp = new Stack<int>();\n  while(!s.IsEmpty()) \n    temp.Push(s.Pop());\n  if (!temp.IsEmpty()) \n    temp.Pop();\n  while (!temp.IsEmpty()) \n    s.Push(temp.Pop());\n}` 
+          },
+          recursiveCount: { 
+            java: `public static int recursiveCount(Stack<Integer> s) {\n  if (s.isEmpty()) \n    return 0;\n  int temp = s.pop();\n  int res = 1 + recursiveCount(s);\n  s.push(temp);\n  return res;\n}`, 
+            csharp: `public static int RecursiveCount(Stack<int> s) {\n  if (s.IsEmpty()) \n    return 0;\n  int temp = s.Pop();\n  int res = 1 + RecursiveCount(s);\n  s.Push(temp);\n  return res;\n}` 
+          }
+        },
+        [DATA_STRUCTURES.QUEUE]: {
+          insert: { 
+            java: `public static void insert(Queue<Integer> q, int val) {\n  q.insert(val);\n}`, 
+            csharp: `public static void Insert(Queue<int> q, int val) {\n  q.Insert(val);\n}` 
+          },
+          remove: { 
+            java: `public static int remove(Queue<Integer> q) {\n  return q.remove();\n}`, 
+            csharp: `public static int Remove(Queue<int> q) {\n  return q.Remove();\n}` 
+          },
+          count: { 
+            java: `public static int count(Queue<Integer> q) {\n  int c = 0;\n  Queue<Integer> temp = new Queue<Integer>();\n  while(!q.isEmpty()) {\n     temp.insert(q.remove());\n     c++;\n  }\n  while(!temp.isEmpty()) \n    q.insert(temp.remove());\n  return c;\n}`, 
+            csharp: `public static int Count(Queue<int> q) {\n  Queue<int> temp = new Queue<int>();\n  int c = 0;\n  while(!q.IsEmpty()) {\n     temp.Insert(q.Remove());\n     c++;\n  }\n  while(!temp.IsEmpty()) \n    q.Insert(temp.Remove());\n  return c;\n}` 
+          },
+          removeVal: { 
+            java: `public static void remove(Queue<Integer> q, int val) {\n  Queue<Integer> temp = new Queue<Integer>();\n  while(!q.isEmpty()) {\n    int x = q.remove();\n    if (x != val) \n      temp.insert(x);\n  }\n  while(!temp.isEmpty()) \n    q.insert(temp.remove());\n}`, 
+            csharp: `public static void Remove(Queue<int> q, int val) {\n  Queue<int> temp = new Queue<int>();\n  while(!q.IsEmpty()) {\n    int x = q.Remove();\n    if (x != val) \n      temp.Insert(x);\n  }\n  while(!temp.IsEmpty()) \n    q.Insert(temp.Remove());\n}` 
+          },
+          removeLast: { 
+            java: `public static void removeLast(Queue<Integer> q) {\n  Queue<Integer> temp = new Queue<Integer>();\n  while(!q.isEmpty()) \n    temp.insert(q.remove());\n  while(!temp.isEmpty()) {\n    int x = temp.remove();\n    if(!temp.isEmpty()) \n      q.insert(x);\n  }\n}`, 
+            csharp: `public static void RemoveLast(Queue<int> q) {\n  Queue<int> temp = new Queue<int>();\n  while(!q.IsEmpty()) \n    temp.Insert(q.Remove());\n  while(!temp.IsEmpty()) {\n    int x = temp.Remove();\n    if(!temp.IsEmpty()) \n      q.Insert(x);\n  }\n}` 
+          },
+          recursiveCount: { 
+            java: `public static int recursiveCount(Queue<Integer> q) {\n  if (q.isEmpty()) \n    return 0;\n  int temp = q.remove();\n  int res = 1 + recursiveCount(q);\n  q.insert(temp);\n  return res;\n}`, 
+            csharp: `public static int RecursiveCount(Queue<int> q) {\n  if (q.IsEmpty()) \n    return 0;\n  int temp = q.Remove();\n  int res = 1 + RecursiveCount(q);\n  q.Insert(temp);\n  return res;\n}` 
+          }
+        },
+        [DATA_STRUCTURES.BINARY_TREE]: {
+          insert: { 
+            java: `public static BinNode<Integer> insert(BinNode<Integer> root, int val) {\n  if (root == null) \n    return new BinNode<Integer>(null, val, null);\n  if (val < root.getValue()) \n      root.setLeft(insert(root.getLeft(), val));\n  else \n      root.setRight(insert(root.getRight(), val));\n  return root;\n}`, 
+            csharp: `public static BinNode<int> Insert(BinNode<int> root, int val) {\n  if (root == null) \n    return new BinNode<int>(null, val, null);\n  if (val < root.GetValue()) \n      root.SetLeft(Insert(root.GetLeft(), val));\n  else \n      root.SetRight(Insert(root.GetRight(), val));\n  return root;\n}` 
+          },
+          find: { 
+            java: `public static boolean find(BinNode<Integer> root, int x) {\n  if (root == null) \n    return false;\n  if (root.getValue() == x) \n    return true;\n  return find(root.getLeft(), x) || find(root.getRight(), x);\n}`, 
+            csharp: `public static bool Find(BinNode<int> root, int x) {\n  if (root == null) \n    return false;\n  if (root.GetValue() == x) \n    return true;\n  return Find(root.GetLeft(), x) || Find(root.GetRight(), x);\n}` 
+          },
+          count: { 
+            java: `public static int count(BinNode<Integer> root) {\n  if (root == null) \n    return 0;\n  return 1 + count(root.getLeft()) + count(root.getRight());\n}`, 
+            csharp: `public static int Count(BinNode<int> root) {\n  if (root == null) \n    return 0;\n  return 1 + Count(root.GetLeft()) + Count(root.GetRight());\n}` 
+          },
+          countLeaves: { 
+            java: `public static int countLeaves(BinNode<Integer> root) {\n  if (root == null) \n    return 0;\n  if (!root.hasLeft() && !root.hasRight()) \n    return 1;\n  return countLeaves(root.getLeft()) + countLeaves(root.getRight());\n}`, 
+            csharp: `public static int CountLeaves(BinNode<int> root) {\n  if (root == null) \n    return 0;\n  if (!root.HasLeft() && !root.HasRight()) \n    return 1;\n  return CountLeaves(root.GetLeft()) + CountLeaves(root.GetRight());\n}` 
+          }
         }
-        current = current.GetNext();
-    }
-    return false;
-}`,
-            count: `public int Count() {
-    int count = 0;
-    Node current = head;
-    while (current != null) {
-        count++;
-        current = current.GetNext();
-    }
-    return count;
-}`
+      };
+
+      // ==========================================
+      // ENGINE
+      // ==========================================
+      const uid = () => Math.random().toString(36).substr(2, 9);
+      const generateInitialList = () => [];
+      const generateRandomList = (count = 5) => Array.from({ length: count }, (_, i) => ({ id: uid(), value: Math.floor(Math.random() * 99) + 1 })).map((n, i, arr) => ({ ...n, next: arr[i + 1]?.id || null }));
+
+      class SnapshotBuilder {
+        constructor(initialNodes, type) {
+          this.frames = [];
+          this.nodes = JSON.parse(JSON.stringify(initialNodes));
+          this.detachedNodes = [];
+          this.mainStack = [...this.nodes]; 
+          this.tempStack = []; 
+          this.type = type;
+          this.pointers = {};
+          this.variables = {}; 
+          this.miniMap = { root: null, currentId: null }; 
+          this.message = "";
+          this.returnValue = null;
+          this.highlightLine = 0;
+          this.tempReturnValue = null;
+        }
+
+        syncVisualNodes() {
+            const visualMain = this.mainStack.map(n => ({ ...n, isTemp: false }));
+            const visualTemp = this.tempStack.map(n => ({ ...n, isTemp: true }));
+            this.nodes = [...visualMain, ...visualTemp];
+        }
+
+        addCallToMap(id, label, parentId, paramValue = null) {
+            const newNode = { id, label, children: [], status: 'active', parentId, value: null, paramValue, locals: {} };
+            if (!this.miniMap.root) this.miniMap.root = newNode;
+            else {
+                const add = (node) => {
+                    if (node.id === parentId) { node.children.push(newNode); return true; }
+                    for (const child of node.children) if (add(child)) return true;
+                    return false;
+                };
+                add(this.miniMap.root);
+            }
+            this.miniMap.currentId = id;
+        }
+
+        updateCallStatus(id, status, value = null) {
+            const update = (node) => {
+                if (node.id === id) { node.status = status; if (value !== null) node.value = value; return true; }
+                for (const child of node.children) if (update(child)) return true;
+                return false;
+            };
+            update(this.miniMap.root);
+            if (status === 'returned' && id === this.miniMap.currentId) {
+                const findNode = (n) => { if (n.id === id) return n; for (const c of n.children) { const res = findNode(c); if (res) return res; } return null; };
+                const n = findNode(this.miniMap.root);
+                if (n && n.parentId) this.miniMap.currentId = n.parentId;
+            }
+        }
+
+        updateCallLocal(id, key, value) {
+            const update = (node) => {
+                if (node.id === id) { 
+                    if (!node.locals) node.locals = {};
+                    node.locals[key] = value;
+                    return true; 
+                }
+                for (const child of node.children) if (update(child)) return true;
+                return false;
+            };
+            update(this.miniMap.root);
+        }
+
+        addFrame(line, msg = "") {
+          if (this.type === DATA_STRUCTURES.STACK) this.syncVisualNodes();
+          this.frames.push({
+            nodes: JSON.parse(JSON.stringify(this.nodes)), 
+            detachedNodes: JSON.parse(JSON.stringify(this.detachedNodes)),
+            pointers: { ...this.pointers },
+            variables: { ...this.variables },
+            miniMap: JSON.parse(JSON.stringify(this.miniMap)),
+            highlightLine: line,
+            message: msg || this.message,
+            returnValue: this.returnValue
+          });
+        }
+
+        setPointer(name, targetId) {
+          if (targetId === null) delete this.pointers[name];
+          else this.pointers[name] = targetId;
+        }
+
+        // --- Stack Operations ---
+        simulateStackPush(val) { 
+            this.addFrame(1); 
+            const newNode = { id: uid(), value: val, next: null, isNew: true }; 
+            this.mainStack.push(newNode); 
+            this.addFrame(2, "s.push(val)"); 
+            delete newNode.isNew; 
+            return this.frames; 
+        }
+        
+        simulateStackPop() { 
+            this.addFrame(1); 
+            if (this.mainStack.length === 0) { 
+                this.addFrame(2); 
+                return this.frames; 
+            } 
+            const val = this.mainStack[this.mainStack.length - 1].value; 
+            this.mainStack[this.mainStack.length - 1].isDeleted = true; 
+            this.addFrame(2); 
+            this.mainStack.pop(); 
+            this.returnValue = val; 
+            this.addFrame(2); 
+            return this.frames; 
+        }
+
+        simulateStackCount() {
+          this.addFrame(1); 
+          this.addFrame(2); // Stack temp
+          this.variables['c'] = 0; 
+          this.addFrame(3); // int c = 0
+          
+          while(this.mainStack.length > 0) { 
+              this.addFrame(4); // while check
+              const node = this.mainStack.pop(); 
+              if (node) this.tempStack.push(node); 
+              this.addFrame(5); // temp.push(s.pop())
+              this.variables['c']++; 
+              this.addFrame(6); // c++
+          }
+          this.addFrame(4); // while check (false)
+          
+          while(this.tempStack.length > 0) { 
+              this.addFrame(8); // while check
+              const node = this.tempStack.pop(); 
+              if(node) this.mainStack.push(node); 
+              this.addFrame(9); // s.push(temp.pop())
+          }
+          this.addFrame(8); // while check (false)
+
+          this.returnValue = this.variables['c']; 
+          this.addFrame(10); 
+          return this.frames;
+        }
+
+        simulateStackRemoveVal(val) {
+            this.addFrame(1); 
+            this.addFrame(2); // Stack temp
+            
+            while(this.mainStack.length > 0) { 
+                this.addFrame(3); // while check
+                const node = this.mainStack.pop(); 
+                if(!node) break; 
+                this.addFrame(4); // int x = pop
+                
+                if (node.value === val) { 
+                    node.isMatch = true; 
+                    this.addFrame(5); // if check (true)
+                    node.isDeleted = true;
+                } else { 
+                    this.addFrame(5); // if check (false)
+                    this.tempStack.push(node); 
+                    this.addFrame(6); // temp.push
+                } 
+            }
+            this.addFrame(3); // while check (false)
+            
+            while(this.tempStack.length > 0) { 
+                this.addFrame(8); // while check
+                const node = this.tempStack.pop(); 
+                if(node) this.mainStack.push(node); 
+                this.addFrame(9); // s.push
+            } 
+            this.addFrame(8); // while check (false)
+            return this.frames;
+        }
+
+        simulateStackRemoveLast() {
+            this.addFrame(1); 
+            this.addFrame(2); // Stack temp
+
+            if (this.mainStack.length === 0) {
+                this.addFrame(3); // while check
+                this.addFrame(5); // if check
+                this.addFrame(7); // while check
+                return this.frames;
+            }
+
+            while(this.mainStack.length > 0) { 
+                this.addFrame(3); // while check
+                const node = this.mainStack.pop(); 
+                if(node) this.tempStack.push(node); 
+                this.addFrame(4); // temp.push
+            }
+            this.addFrame(3); // while check (false)
+            
+            this.addFrame(5); // if check
+            const bottomNode = this.tempStack.pop(); 
+            if (bottomNode) {
+                bottomNode.isDeleted = true;
+                this.addFrame(6); // temp.pop()
+            } 
+            
+            while(this.tempStack.length > 0) { 
+                this.addFrame(7); // while check
+                const node = this.tempStack.pop(); 
+                if (node) this.mainStack.push(node); 
+                this.addFrame(8); // s.push
+            } 
+            this.addFrame(7); // while check (false)
+            return this.frames;
+        }
+
+        simulateStackRecursiveCount() {
+            this.addFrame(1); 
+            const s = [{ id: 'root', stage: 0 }]; 
+            this.miniMap = { root: { id: 'root', label: 'count', children: [], status: 'active', paramValue: 'Stack', locals: {} }, currentId: 'root' }; 
+            const localVars = { 'root': {} }; 
+            let idCounter = 0;
+            
+            while(s.length > 0) {
+                const frame = s[s.length - 1]; 
+                const vars = localVars[frame.id]; 
+                this.miniMap.currentId = frame.id;
+                
+                if (frame.stage === 0) {
+                    this.addFrame(2); // if empty
+                    if (this.mainStack.length === 0) { 
+                        this.addFrame(3); // return 0
+                        this.updateCallStatus(frame.id, 'returned', 0); 
+                        vars.retVal = 0; 
+                        frame.stage = 2; 
+                    } else {
+                        const node = this.mainStack.pop(); 
+                        if(node) { 
+                            node.isDeleted = true; 
+                            vars.node = node; 
+                        } 
+                        this.updateCallLocal(frame.id, 'temp', node ? node.value : '?');
+                        this.addFrame(4); // int temp = pop
+                        
+                        const childId = `c${++idCounter}`; 
+                        this.addCallToMap(childId, 'count', frame.id, 'Stack'); 
+                        localVars[childId] = {}; 
+                        s.push({ id: childId, stage: 0 }); 
+                        frame.stage = 1; 
+                        this.addFrame(5); // call recursive
+                        continue; 
+                    }
+                } else if (frame.stage === 1) { 
+                    const childRet = this.tempReturnValue; 
+                    vars.node.isDeleted = false; 
+                    this.mainStack.push(vars.node); 
+                    this.addFrame(6); // s.push
+                    
+                    vars.retVal = 1 + childRet; 
+                    this.updateCallLocal(frame.id, 'res', vars.retVal);
+                    this.updateCallStatus(frame.id, 'returned', vars.retVal); 
+                    this.addFrame(7); // return res
+                    frame.stage = 2; 
+                }
+                if (frame.stage === 2) { 
+                    this.tempReturnValue = vars.retVal; 
+                    if (s.length === 1) { 
+                        this.returnValue = vars.retVal; 
+                        this.addFrame(7); 
+                    } 
+                    s.pop(); 
+                }
+            } 
+            return this.frames;
+        }
+
+        // --- List Ops ---
+        simulateListAddFirst(val) { 
+            this.addFrame(1); 
+            const newId = uid(); 
+            const newNode = { id: newId, value: val, next: null, isNew: true }; 
+            this.detachedNodes.push(newNode); // Create outside
+            
+            this.setPointer('newNode', newId); // Pointer on detached node
+            this.addFrame(2); // Node p = new Node
+            
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null;
+            this.setPointer('lst', headId); 
+            newNode.next = headId; 
+            this.addFrame(3); // p.setNext(lst) -- animate connection
+            
+            this.detachedNodes = []; // Remove from detached
+            this.nodes.unshift(newNode); // Add to main list
+            this.setPointer('head', newId); 
+            
+            this.returnValue = val; 
+            this.setPointer('newNode', null); 
+            this.setPointer('lst', null); 
+            this.addFrame(4); // return p
+            
+            delete newNode.isNew; 
+            return this.frames; 
+        }
+
+        simulateListAddLast(val) { 
+            this.addFrame(1); 
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null; 
+            this.setPointer('lst', headId); 
+            
+            // Line 2: if (lst == null)
+            if (this.nodes.length === 0) { 
+                this.addFrame(2); 
+                const newId = uid(); 
+                const newNode = { id: newId, value: val, next: null, isNew: true }; 
+                this.detachedNodes.push(newNode); // Create outside
+                this.setPointer('newNode', newId); 
+                
+                this.addFrame(3); // return new Node
+                
+                this.detachedNodes = [];
+                this.nodes.push(newNode); // Move to list
+                this.returnValue = val; 
+                this.setPointer('head', newId); 
+                this.setPointer('newNode', null); 
+                this.setPointer('lst', null); 
+                delete newNode.isNew; 
+                return this.frames; 
+            } 
+            this.addFrame(2); // check failed
+            
+            this.setPointer('p', headId); 
+            this.addFrame(4); // Node p = lst
+            
+            let i = 0; 
+            this.addFrame(5); // while check
+            while(i < this.nodes.length - 1) { 
+                this.setPointer('p', this.nodes[i].id); 
+                
+                i++; 
+                this.setPointer('p', this.nodes[i].id); 
+                this.addFrame(6); // p = p.next
+                
+                this.addFrame(5); // while check
+            } 
+            
+            const newId = uid(); 
+            const newNode = { id: newId, value: val, next: null, isNew: true }; 
+            this.detachedNodes.push(newNode); // Create outside
+            this.setPointer('newNode', newId); 
+            
+            this.addFrame(7); // p.setNext (create new node visually)
+            
+            this.nodes[i].next = newId; // Link visual
+            this.detachedNodes = [];
+            this.nodes.push(newNode);
+            
+            this.returnValue = this.nodes[0].value; 
+            this.setPointer('p', null); 
+            this.setPointer('lst', null); 
+            this.setPointer('newNode', null); 
+            delete newNode.isNew; 
+            
+            this.addFrame(8); // return lst
+            return this.frames; 
+        }
+
+        simulateListFind(val) { 
+            this.addFrame(1); 
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null; 
+            this.setPointer('lst', headId); 
+            this.setPointer('p', headId); 
+            this.addFrame(2); // Node p = lst
+            
+            let found = false; 
+            // 3: while(p != null)
+            this.addFrame(3);
+            for(let i=0; i<this.nodes.length; i++) { 
+                this.setPointer('p', this.nodes[i].id); 
+                
+                this.addFrame(4); // if check
+                if (this.nodes[i].value === val) { 
+                    this.nodes[i].isMatch = true; 
+                    this.addFrame(4); // visual
+                    found = true; 
+                    this.addFrame(5); // return true
+                    break; 
+                } 
+                
+                this.addFrame(6); // p = p.next
+                this.addFrame(3); // while check
+            } 
+            
+            if (!found) { 
+                this.setPointer('p', null); 
+                this.addFrame(3); // Final while check (failed)
+                this.returnValue = "false"; 
+                this.addFrame(8); // return false
+            } else {
+                this.returnValue = "true";
+            }
+            return this.frames; 
+        }
+
+        simulateListDelete(val) { 
+            this.addFrame(1); 
+            
+            // 2: if (lst == null)
+            if(this.nodes.length===0) {
+                this.addFrame(2);
+                this.addFrame(3); // return null
+                return this.frames; 
+            }
+            this.addFrame(2); // check false
+            
+            // 4: if (lst.val == target)
+            if(this.nodes[0].value === val) { 
+                this.addFrame(4);
+                this.nodes.shift(); 
+                this.addFrame(5); // return next
+                return this.frames; 
+            }
+            this.addFrame(4); // check false
+
+            this.setPointer('prev', this.nodes[0].id); 
+            this.addFrame(6); // Node prev = lst
+            
+            this.addFrame(7); // while check
+            for(let i=0; i<this.nodes.length-1; i++) { 
+                this.setPointer('prev', this.nodes[i].id); 
+                
+                this.addFrame(8); // if (prev.next.val == target)
+                if(this.nodes[i+1].value === val) { 
+                    this.nodes[i+1].isMatch = true; 
+                    this.addFrame(8); 
+                    this.nodes.splice(i+1, 1); 
+                    this.nodes[i].next = this.nodes[i+1]?.id || null; 
+                    
+                    this.addFrame(9); // prev.setNext
+                    this.setPointer('prev', null); 
+                    this.addFrame(10); // return lst
+                    return this.frames; 
+                } 
+                
+                this.addFrame(12); // prev = prev.next
+                this.addFrame(7); // while check
+            } 
+            this.setPointer('prev', null); 
+            this.addFrame(7); // while check (false)
+            this.addFrame(14); // return lst
+            return this.frames; 
+        }
+
+        simulateListCount() { 
+            this.addFrame(1); 
+            this.variables['c'] = 0; 
+            this.addFrame(2); // int c = 0
+            
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null; 
+            this.setPointer('p', headId); 
+            this.addFrame(3); // for loop init/check
+            
+            for(let i=0; i<this.nodes.length; i++) { 
+                this.setPointer('p', this.nodes[i].id); 
+                this.variables['c']++; 
+                this.addFrame(4); // c++
+                this.addFrame(3); // loop update/check
+            } 
+            this.setPointer('p', null); 
+            this.addFrame(3); // loop check (false)
+            
+            this.returnValue = this.variables['c']; 
+            this.addFrame(5); // return c
+            return this.frames; 
+        }
+
+        simulateListRecursiveCount() { 
+            this.addFrame(1); 
+            const s = [{ id: 'root', stage: 0, nodeIndex: 0 }]; 
+            const firstVal = this.nodes.length > 0 ? this.nodes[0].value : 'null'; 
+            this.miniMap = { root: { id: 'root', label: 'count', children: [], status: 'active', paramValue: firstVal, locals: {} }, currentId: 'root' }; 
+            const localVars = { 'root': {} }; 
+            let idCounter = 0; 
+            
+            while(s.length > 0) { 
+                const frame = s[s.length - 1]; 
+                const vars = localVars[frame.id]; 
+                this.miniMap.currentId = frame.id; 
+                
+                if (frame.stage === 0) { 
+                    const currNode = this.nodes[frame.nodeIndex]; 
+                    if (currNode) this.setPointer('p', currNode.id); else this.setPointer('p', null); 
+                    
+                    this.addFrame(2); // if (p == null)
+                    if (frame.nodeIndex >= this.nodes.length) { 
+                        this.addFrame(3); // return 0
+                        vars.retVal = 0; 
+                        this.updateCallStatus(frame.id, 'returned', 0); 
+                        frame.stage = 2; 
+                    } else { 
+                        const childId = `c${++idCounter}`; 
+                        const nextVal = this.nodes[frame.nodeIndex+1] ? this.nodes[frame.nodeIndex+1].value : 'null'; 
+                        this.addCallToMap(childId, 'count', frame.id, nextVal); 
+                        localVars[childId] = {}; 
+                        s.push({ id: childId, stage: 0, nodeIndex: frame.nodeIndex + 1 }); 
+                        frame.stage = 1; 
+                        this.addFrame(4); // return 1 + recursive
+                        continue; 
+                    } 
+                } else if (frame.stage === 1) { 
+                    const childRet = this.tempReturnValue; 
+                    this.setPointer('p', this.nodes[frame.nodeIndex].id); 
+                    vars.retVal = 1 + childRet; 
+                    this.updateCallStatus(frame.id, 'returned', vars.retVal); 
+                    this.addFrame(4); // result calc
+                    frame.stage = 2; 
+                } 
+                if (frame.stage === 2) { 
+                    this.tempReturnValue = vars.retVal; 
+                    if (s.length === 1) { 
+                        this.returnValue = vars.retVal; 
+                        this.addFrame(4); 
+                    } 
+                    s.pop(); 
+                } 
+            } 
+            return this.frames; 
+        }
+
+        simulateListAddAfter(target, val) { 
+            this.addFrame(1); 
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null; 
+            this.setPointer('lst', headId); 
+            this.setPointer('p', headId); 
+            this.addFrame(2); // Node p = lst
+            
+            let i = 0; 
+            this.addFrame(3); // while check
+            while(i < this.nodes.length) { 
+                this.setPointer('p', this.nodes[i].id); 
+                
+                this.addFrame(4); // if (p.val == target)
+                if(this.nodes[i].value === target) { 
+                    this.nodes[i].isMatch = true; 
+                    this.addFrame(4); 
+                    
+                    const newId = uid(); 
+                    const n = {id: newId, value: val, next: null, isNew: true}; 
+                    this.detachedNodes.push(n); // Create outside
+                    this.setPointer('newNode', newId); 
+                    this.addFrame(5); // Node temp = new
+                    
+                    if(this.nodes[i+2]) n.next = this.nodes[i+2].id; // Visual logic for "setting next" (in memory)
+                    this.addFrame(6); // temp.setNext
+                    
+                    this.detachedNodes = [];
+                    this.nodes.splice(i+1, 0, n); // Move to list
+                    this.nodes[i].next = newId; 
+                    this.addFrame(7); // p.setNext
+                    
+                    this.setPointer('newNode', null); 
+                    this.setPointer('p', null); 
+                    delete n.isNew; 
+                    this.addFrame(8); // return
+                    return this.frames; 
+                } 
+                
+                i++; 
+                this.addFrame(10); // p = p.next
+                this.addFrame(3); // while check
+            } 
+            this.setPointer('p', null); 
+            this.addFrame(3); // while check (false)
+            return this.frames; 
+        }
+
+        simulateListAddBefore(target, val) { 
+            this.addFrame(1); 
+            const headId = this.nodes.length > 0 ? this.nodes[0].id : null; 
+            this.setPointer('lst', headId); 
+            
+            // 2: if (lst == null)
+            if(this.nodes.length === 0) { 
+                this.addFrame(2); 
+                this.addFrame(3); // return null
+                return this.frames; 
+            } 
+            this.addFrame(2); // check false
+            
+            // 4: if (lst.val == target)
+            if(this.nodes[0].value === target) { 
+                this.nodes[0].isMatch = true; 
+                this.addFrame(4); 
+                
+                const newId = uid(); 
+                const n = {id: newId, value: val, next: null, isNew: true}; 
+                this.detachedNodes.push(n); // Create outside
+                this.setPointer('newNode', newId); 
+                this.addFrame(5); // Node p = new
+                
+                n.next = this.nodes[0].id;
+                this.addFrame(6); // p.setNext(lst)
+                
+                this.detachedNodes = [];
+                this.nodes.unshift(n);
+                this.setPointer('head', newId); 
+                delete n.isNew; 
+                this.addFrame(7); // return p
+                return this.frames; 
+            } 
+            this.addFrame(4); // check false
+
+            this.setPointer('prev', headId); 
+            this.addFrame(9); // Node prev = lst
+            
+            let i = 0; 
+            this.addFrame(10); // while check
+            while(i < this.nodes.length - 1) { 
+                this.setPointer('prev', this.nodes[i].id); 
+                
+                this.addFrame(11); // if (prev.next.val == target)
+                if(this.nodes[i+1].value === target) { 
+                    this.nodes[i+1].isMatch = true; 
+                    this.addFrame(11); 
+                    
+                    const newId = uid(); 
+                    const n = {id: newId, value: val, next: null, isNew: true}; 
+                    this.detachedNodes.push(n); // Create outside
+                    this.setPointer('newNode', newId); 
+                    this.addFrame(12); // Node temp = new
+                    
+                    n.next = this.nodes[i+1].id;
+                    this.addFrame(13); // temp.setNext
+                    
+                    this.detachedNodes = [];
+                    this.nodes.splice(i+1, 0, n);
+                    this.nodes[i].next = newId; 
+                    this.addFrame(14); // prev.setNext
+                    
+                    this.setPointer('prev', null); 
+                    this.setPointer('newNode', null); 
+                    delete n.isNew; 
+                    this.addFrame(15); // return lst
+                    return this.frames; 
+                } 
+                
+                i++; 
+                this.addFrame(17); // prev = prev.next
+                this.addFrame(10); // while check
+            } 
+            this.setPointer('prev', null); 
+            this.addFrame(10); // while check (false)
+            this.addFrame(19); // return lst
+            return this.frames; 
+        }
+
+        // --- Queue Ops ---
+        simulateQueueCount() {
+            this.addFrame(1); 
+            this.addFrame(2); // int c = 0
+            this.variables['c'] = 0;
+            this.addFrame(3); // Queue temp
+            
+            const q = [...this.nodes]; 
+            const len = q.length; 
+            
+            this.addFrame(4); // while check
+            for(let i=0; i<len; i++) { 
+                const n = this.nodes.shift(); 
+                if(n) { n.isTemp = true; this.nodes.push(n); } 
+                this.addFrame(5); // temp.insert(remove)
+                this.variables['c']++; 
+                this.addFrame(6); // c++
+                this.addFrame(4); // while check
+            }
+            
+            this.addFrame(8); // while check 2
+            for(let i=0; i<len; i++) { 
+                const n = this.nodes.shift(); 
+                if(n) { n.isTemp = false; this.nodes.push(n); } 
+                this.addFrame(9); // q.insert(remove)
+                this.addFrame(8); // while check 2
+            }
+            
+            this.returnValue = this.variables['c']; 
+            this.addFrame(10); // return c
+            return this.frames;
+        }
+        
+        simulateQueueInsert(val) { this.addFrame(1); this.nodes.push({ id: uid(), value: val, next: null }); this.addFrame(2); return this.frames; }
+        simulateQueueRemove() { this.addFrame(1); if(this.nodes.length > 0) { const v = this.nodes.shift(); if(v) this.returnValue = v.value; } this.addFrame(2); return this.frames; }
+        
+        simulateQueueRemoveVal(val) {
+            this.addFrame(1);
+            this.addFrame(2); // temp
+            
+            const originalLen = this.nodes.length;
+            this.addFrame(3); // while check
+            for (let i = 0; i < originalLen; i++) {
+              const node = this.nodes.shift();
+              if (!node) break;
+              
+              this.addFrame(4); // x = remove
+              
+              if (node.value === val) {
+                node.isMatch = true;
+                this.addFrame(5); // if check (true)
+                // Removed setting return value for void method
+                // skip insert
+              } else {
+                this.addFrame(5); // if check (false)
+                node.isTemp = true;
+                this.nodes.push(node);
+                this.addFrame(6); // insert
+              }
+              this.addFrame(3); // while check
+            }
+            
+            this.addFrame(8); // while check 2
+            const tempLen = this.nodes.length;
+            for (let i = 0; i < tempLen; i++) {
+               const node = this.nodes.shift();
+               if (node) {
+                   node.isTemp = false;
+                   this.nodes.push(node);
+                   this.addFrame(9); // insert
+               }
+               this.addFrame(8); // while check 2
+            }
+            return this.frames;
+        }
+        
+        simulateQueueRemoveLast() { 
+            this.addFrame(1); 
+            this.addFrame(2); // Queue temp
+            
+            const initialSize = this.nodes.length;
+            
+            // Loop 1: Move all to temp
+            this.addFrame(3); // while(!q.isEmpty())
+            for(let i=0; i<initialSize; i++) {
+                const n = this.nodes.shift();
+                if (n) {
+                   n.isTemp = true;
+                   this.nodes.push(n);
+                }
+                this.addFrame(4); // temp.insert(q.remove())
+                this.addFrame(3); // while check
+            }
+            
+            // Loop 2: Move back to q except last
+            this.addFrame(5); // while(!temp.isEmpty())
+            for(let i=0; i<initialSize; i++) {
+                // Visual remove from temp queue
+                const n = this.nodes.shift();
+                this.addFrame(6); // int x = temp.remove()
+                
+                this.addFrame(7); // if(!temp.isEmpty())
+                
+                if (i < initialSize - 1) {
+                    // Not last
+                    if (n) {
+                        n.isTemp = false;
+                        this.nodes.push(n);
+                    }
+                    this.addFrame(8); // q.insert(x)
+                }
+                this.addFrame(5); // while check
+            }
+            
+            return this.frames; 
+        }
+        
+        simulateQueueRecursiveCount() {
+             this.addFrame(1); 
+             const s = [{ id: 'root', stage: 0 }]; 
+             this.miniMap = { root: { id: 'root', label: 'count', children: [], status: 'active', paramValue: 'Queue', locals: {} }, currentId: 'root' }; 
+             const localVars = { 'root': {} }; 
+             let idCounter = 0;
+             
+             while(s.length > 0) {
+                 const frame = s[s.length - 1]; 
+                 const vars = localVars[frame.id]; 
+                 this.miniMap.currentId = frame.id;
+                 
+                 if(frame.stage === 0) {
+                     this.addFrame(2); // if empty
+                     if (this.nodes.length === 0) { 
+                         this.addFrame(3); // return 0
+                         vars.retVal = 0; 
+                         this.updateCallStatus(frame.id, 'returned', 0); 
+                         frame.stage = 2; 
+                     } else {
+                         const node = this.nodes.shift(); 
+                         if(node) { node.isDeleted = true; vars.node = node; } 
+                         this.updateCallLocal(frame.id, 'temp', node ? node.value : '?');
+                         this.addFrame(4); // int temp = remove
+                         
+                         const childId = `c${++idCounter}`; 
+                         this.addCallToMap(childId, 'count', frame.id, 'Queue'); 
+                         localVars[childId] = {}; 
+                         s.push({id: childId, stage: 0}); 
+                         frame.stage = 1; 
+                         this.addFrame(5); // call recursive
+                         continue;
+                     }
+                 } else if (frame.stage === 1) { 
+                     const childRet = this.tempReturnValue; 
+                     const node = vars.node; 
+                     node.isDeleted = false; 
+                     this.nodes.push(node); 
+                     this.addFrame(6); // insert
+                     
+                     vars.retVal = 1 + childRet; 
+                     this.updateCallLocal(frame.id, 'res', vars.retVal);
+                     this.updateCallStatus(frame.id, 'returned', vars.retVal); 
+                     this.addFrame(7); // return
+                     frame.stage = 2; 
+                 }
+                 if (frame.stage === 2) { 
+                     this.tempReturnValue = vars.retVal; 
+                     if (s.length === 1) { 
+                         this.returnValue = vars.retVal; 
+                         this.addFrame(7); 
+                     } 
+                     s.pop(); 
+                 }
+             } 
+             return this.frames;
+        }
+      }
+
+      // ==========================================
+      // COMPONENTS
+      // ==========================================
+      const Pointer = ({ label, color }) => (
+        <motion.div layoutId={`pointer-${label}`} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute -top-10 left-1/2 -translate-x-1/2 flex flex-col items-center z-50 pointer-events-none">
+          <div className={`px-2 py-0.5 rounded text-[10px] font-bold shadow-sm mb-0.5 whitespace-nowrap ${color}`}>{label}</div>
+          <ArrowDownToLine className="w-4 h-4 text-slate-500" />
+        </motion.div>
+      );
+
+      const ResultOverlay = ({ returnValue, onDismiss }) => (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white border-2 border-emerald-500 shadow-2xl rounded-xl p-6 flex flex-col items-center gap-2 pointer-events-auto">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Return Value</div>
+              <div className="text-3xl font-bold text-emerald-600 font-mono">{String(returnValue)}</div>
+              <button onClick={onDismiss} className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline">Close</button>
+          </motion.div>
+      );
+
+      const VariablesDisplay = ({ variables }) => (
+        <div className="absolute top-16 right-4 z-30 flex flex-col gap-2 pointer-events-none">
+          <AnimatePresence>
+            {Object.entries(variables).map(([k, v]) => (
+              <motion.div 
+                key={k} 
+                initial={{ opacity: 0, x: 20 }} 
+                animate={{ opacity: 1, x: 0 }} 
+                exit={{ opacity: 0, x: 20 }} 
+                className="bg-white/90 backdrop-blur p-2 rounded shadow border border-slate-200 flex items-center gap-2 font-mono text-xs pointer-events-auto"
+              >
+                <div className="bg-slate-100 p-1 rounded text-slate-500"><Hash className="w-3 h-3"/></div>
+                <span className="font-bold text-slate-600">{k}:</span>
+                <span className="font-bold text-indigo-600">{String(v)}</span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      );
+
+      const MiniNodeIcon = ({ value }) => <div className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-300 bg-white text-[8px] font-bold text-slate-600 shadow-sm ml-1">{value === 'null' ? '∅' : value}</div>;
+
+      const MiniMap = ({ mapData }) => {
+          const [zoom, setZoom] = useState(1);
+          const [minimized, setMinimized] = useState(false);
+
+          if (!mapData || !mapData.root) return null;
+
+          const renderNode = (node) => (
+              <div key={node.id} className="flex flex-col items-center mx-1">
+                  <div className={`border rounded px-2 py-1 text-[10px] font-mono mb-1 transition-all flex flex-col items-center gap-1 whitespace-nowrap ${mapData.currentId === node.id ? 'bg-yellow-100 border-yellow-400 shadow-md ring-1 ring-yellow-300' : 'bg-white border-slate-200'} ${node.status === 'returned' ? 'bg-emerald-50 border-emerald-300' : ''}`}>
+                      <div className="flex items-center gap-1">
+                          <span className="font-bold text-slate-600">{node.label}</span>
+                          <span className="text-slate-400">(</span><MiniNodeIcon value={node.paramValue} /><span className="text-slate-400">)</span>
+                          {node.value !== null && <span className="text-emerald-600 font-bold ml-1">→ {node.value}</span>}
+                      </div>
+                      {node.locals && Object.keys(node.locals).length > 0 && (
+                          <div className="w-full pt-1 mt-0.5 border-t border-slate-200/50 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500">
+                              {Object.entries(node.locals).map(([k, v]) => (
+                                  <span key={k} className="flex gap-1"><span>{k}:</span><span className="font-bold text-blue-600">{String(v)}</span></span>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+                  {node.children.length > 0 && <div className="flex gap-2 relative mt-1 border-t border-slate-200 pt-1">{node.children.map(child => <div key={child.id} className="flex flex-col items-center">{renderNode(child)}</div>)}</div>}
+              </div>
+          );
+
+          if (minimized) {
+              return (
+                  <div className="bg-white border border-slate-300 shadow-md rounded-lg p-2 absolute bottom-4 right-4 z-40 cursor-pointer hover:bg-slate-50" onClick={() => setMinimized(false)}>
+                      <Maximize2 className="w-4 h-4 text-slate-500" />
+                  </div>
+              );
+          }
+
+          return (
+              <div className="bg-white/95 backdrop-blur border border-slate-300 shadow-2xl rounded-lg flex flex-col overflow-hidden max-h-[300px] max-w-[400px] z-40">
+                  <div className="flex-none p-2 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Network className="w-3 h-3" /> Call Stack</div>
+                      <div className="flex items-center gap-1">
+                          <button onClick={() => setZoom(z => Math.max(0.5, z - 0.1))} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ZoomOut className="w-3 h-3" /></button>
+                          <span className="text-[9px] w-6 text-center text-slate-400">{Math.round(zoom * 100)}%</span>
+                          <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ZoomIn className="w-3 h-3" /></button>
+                          <div className="w-px h-3 bg-slate-300 mx-1"></div>
+                          <button onClick={() => setMinimized(true)} className="p-1 hover:bg-slate-200 rounded text-slate-500"><Minimize2 className="w-3 h-3" /></button>
+                      </div>
+                  </div>
+                  <div className="flex-1 overflow-auto p-4 min-w-[250px]">
+                      <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', width: 'fit-content', margin: '0 auto' }}>
+                          {renderNode(mapData.root)}
+                      </div>
+                  </div>
+              </div>
+          );
+      };
+
+      const NodeComponent = ({ 
+          node, 
+          index, 
+          pointers, 
+          isList, 
+          showNext = true, 
+          isVertical = false, 
+          arrowDirection = 'right', 
+          hideNull = false,
+          hasNext,
+          showExit = false
+      }) => {
+        const myPointers = Object.entries(pointers).filter(([_, id]) => id === node.id).map(([name, _]) => ({ name, color: COLORS[name] || COLORS.default }));
+        const showArrow = hasNext !== undefined ? hasNext : !!node.next;
+
+        return (
+          <div className={`flex ${isVertical ? 'flex-col' : 'flex-row'} items-center transform transition-all duration-300`}>
+            {isList === false && !isVertical && arrowDirection === 'left' && (
+                <div className={`w-8 flex items-center justify-center text-slate-300 ${showExit ? '' : 'opacity-0'}`}>
+                    <ArrowLeft className="w-5 h-5" />
+                </div>
+            )}
+            
+            <motion.div layout initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: node.isMatch ? 1.1 : 1, opacity: node.isDeleted ? 0 : 1, backgroundColor: node.isNew ? '#dcfce7' : (node.isMatch ? '#bbf7d0' : (node.isTemp ? '#e2e8f0' : 'white')), borderColor: node.isMatch ? '#22c55e' : (node.isTemp ? '#94a3b8' : '#cbd5e1') }} className={`relative flex flex-col border-2 rounded-lg shadow-md w-20 h-14 shrink-0 transition-colors duration-300 z-10`}>
+              <div className="absolute w-full h-full pointer-events-none"><AnimatePresence>{myPointers.map((p, i) => (<div key={p.name} style={{ position: 'absolute', top: -10, left: 0, width: '100%', transform: `translateY(-${(i+1)*30}px)` }}><Pointer key={p.name} label={p.name} color={p.color} /></div>))}</AnimatePresence></div>
+              <div className="flex-1 flex items-center justify-center font-mono text-lg font-bold border-b border-inherit">{node.value}</div>
+              {showNext && <div className="h-4 bg-slate-50/50 text-[8px] text-slate-400 flex items-center justify-center uppercase tracking-widest">Next</div>}
+            </motion.div>
+            
+            {showNext && !isVertical && (
+                <div className="w-8 flex items-center justify-center text-slate-300">
+                  {showArrow ? (
+                      arrowDirection === 'left' ? <ArrowLeft className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />
+                  ) : (
+                      !hideNull && <div className="w-2 h-2 rounded-full bg-red-300" title="Null" />
+                  )}
+                </div>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
+      // MAIN APP
+      // ==========================================
+      class ErrorBoundary extends React.Component {
+        constructor(props) {
+            super(props);
+            this.state = { hasError: false, error: null };
+        }
+        static getDerivedStateFromError(error) { return { hasError: true, error }; }
+        componentDidCatch(error, errorInfo) { console.error("App Crash:", error, errorInfo); }
+        render() {
+          if (this.state.hasError) {
+            return (
+              <div className="p-8 text-red-600 bg-red-50 h-screen flex flex-col items-center justify-center font-mono">
+                <h1 className="text-2xl font-bold mb-4">Application Crashed</h1>
+                <pre className="bg-white p-4 rounded border border-red-200 max-w-2xl overflow-auto">{this.state.error?.toString()}</pre>
+                <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded">Reload Page</button>
+              </div>
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      function WrappedApp() {
+          return <ErrorBoundary><DataStructureVisualizer /></ErrorBoundary>;
+      }
+
+      function DataStructureVisualizer() {
+        const [activeDS, setActiveDS] = useState(DATA_STRUCTURES.LINKED_LIST);
+        const [nodes, setNodes] = useState(generateInitialList());
+        const [detachedNodes, setDetachedNodes] = useState([]);
+        const [pointers, setPointers] = useState({});
+        const [variables, setVariables] = useState({});
+        const [miniMap, setMiniMap] = useState(null);
+        const [returnValue, setReturnValue] = useState(null);
+        const [frames, setFrames] = useState([]);
+        const [currentFrameIndex, setCurrentFrameIndex] = useState(-1);
+        const [isPlaying, setIsPlaying] = useState(false);
+        const [playbackSpeed, setPlaybackSpeed] = useState(1000);
+        const [lang, setLang] = useState('java');
+        const [inputVal, setInputVal] = useState('');
+        const [inputTarget, setInputTarget] = useState('');
+        const [statusMsg, setStatusMsg] = useState('Ready');
+        const [selectedMethod, setSelectedMethod] = useState('');
+        const [activeOp, setActiveOp] = useState(null);
+
+        useEffect(() => { 
+            const ops = OPS_CONFIG[activeDS];
+            if (ops && ops.length > 0) setSelectedMethod(ops[0].value); 
+            setReturnValue(null); 
+            handleClear();
+        }, [activeDS]);
+
+        useEffect(() => { 
+            let timer; 
+            if (isPlaying && currentFrameIndex < frames.length - 1) 
+                timer = setTimeout(() => setCurrentFrameIndex(prev => prev + 1), playbackSpeed); 
+            else if (currentFrameIndex >= frames.length - 1) 
+                setIsPlaying(false); 
+            return () => clearTimeout(timer); 
+        }, [isPlaying, currentFrameIndex, frames, playbackSpeed]);
+
+        useEffect(() => { 
+            if (currentFrameIndex >= 0 && frames[currentFrameIndex]) { 
+                const f = frames[currentFrameIndex]; 
+                setNodes(f.nodes); 
+                setDetachedNodes(f.detachedNodes || []);
+                setPointers(f.pointers); 
+                setVariables(f.variables||{}); 
+                setMiniMap(f.miniMap||null); 
+                setStatusMsg(f.message||'Executing...'); 
+                if (f.returnValue !== null && f.returnValue !== undefined) { 
+                    setReturnValue(f.returnValue); 
+                    setIsPlaying(false); 
+                } 
+            } 
+        }, [currentFrameIndex, frames]);
+
+        const handleGenerate = () => { 
+            if (activeDS === DATA_STRUCTURES.BINARY_TREE) return;
+            setFrames([]); 
+            setIsPlaying(false); 
+            setVariables({}); 
+            setMiniMap(null); 
+            setReturnValue(null); 
+            setPointers({}); 
+            setDetachedNodes([]);
+            setNodes(generateRandomList(5)); 
+        };
+        
+        const handleClear = () => { setNodes([]); setDetachedNodes([]); setPointers({}); setFrames([]); setIsPlaying(false); setReturnValue(null); setMiniMap(null); };
+
+        const runOperation = () => {
+          if (activeDS === DATA_STRUCTURES.BINARY_TREE) return;
+          if (!selectedMethod) return; 
+          
+          setIsPlaying(false); setFrames([]); setReturnValue(null); setVariables({}); setMiniMap(null); setPointers({});
+          const cleanNodes = nodes.map(n => ({...n, isMatch: false, isNew: false, isDeleted: false, isTemp: false})); 
+          setNodes(cleanNodes);
+          setDetachedNodes([]);
+          
+          const builder = new SnapshotBuilder(cleanNodes, activeDS);
+          let generatedFrames = [];
+          const val = parseInt(inputVal) || 0; 
+          const target = parseInt(inputTarget) || 0;
+
+          if (activeDS === DATA_STRUCTURES.LINKED_LIST) {
+              if (selectedMethod === 'addFirst') generatedFrames = builder.simulateListAddFirst(val);
+              else if (selectedMethod === 'addLast') generatedFrames = builder.simulateListAddLast(val);
+              else if (selectedMethod === 'find') generatedFrames = builder.simulateListFind(target);
+              else if (selectedMethod === 'count') generatedFrames = builder.simulateListCount();
+              else if (selectedMethod === 'delete') generatedFrames = builder.simulateListDelete(target);
+              else if (selectedMethod === 'addAfter') generatedFrames = builder.simulateListAddAfter(target, val);
+              else if (selectedMethod === 'addBefore') generatedFrames = builder.simulateListAddBefore(target, val);
+              else if (selectedMethod === 'recursiveCount') generatedFrames = builder.simulateListRecursiveCount();
+          } else if (activeDS === DATA_STRUCTURES.STACK) {
+              if (selectedMethod === 'push') generatedFrames = builder.simulateStackPush(val);
+              else if (selectedMethod === 'pop') generatedFrames = builder.simulateStackPop();
+              else if (selectedMethod === 'count') generatedFrames = builder.simulateStackCount();
+              else if (selectedMethod === 'removeVal') generatedFrames = builder.simulateStackRemoveVal(target);
+              else if (selectedMethod === 'removeLast') generatedFrames = builder.simulateStackRemoveLast();
+              else if (selectedMethod === 'recursiveCount') generatedFrames = builder.simulateStackRecursiveCount();
+          } else if (activeDS === DATA_STRUCTURES.QUEUE) {
+              if (selectedMethod === 'insert') generatedFrames = builder.simulateQueueInsert(val);
+              else if (selectedMethod === 'remove') generatedFrames = builder.simulateQueueRemove();
+              else if (selectedMethod === 'count') generatedFrames = builder.simulateQueueCount();
+              else if (selectedMethod === 'removeVal') generatedFrames = builder.simulateQueueRemoveVal(target);
+              else if (selectedMethod === 'removeLast') generatedFrames = builder.simulateQueueRemoveLast();
+              else if (selectedMethod === 'recursiveCount') generatedFrames = builder.simulateQueueRecursiveCount();
+          } 
+
+          if (generatedFrames.length > 0) { 
+              setFrames(generatedFrames); 
+              setCurrentFrameIndex(0); 
+              setIsPlaying(true); 
+              setActiveOp(selectedMethod); 
+              setInputVal(''); 
+              setInputTarget(''); 
           }
         };
+        
+        const currentOpConfig = OPS_CONFIG[activeDS]?.find(op => op.value === selectedMethod);
+        const showValInput = currentOpConfig?.params.includes('val');
+        const showTargetInput = currentOpConfig?.params.includes('target');
+        const safeCodeSnippet = CODE_SNIPPETS[activeDS]?.[selectedMethod]?.[lang] || "// Code unavailable";
 
-        // --- COMPONENTS ---
+        const renderVisuals = () => {
+            if (activeDS === DATA_STRUCTURES.BINARY_TREE) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50/50">
+                         <div className="bg-white p-8 rounded-2xl shadow-xl flex flex-col items-center gap-4 border border-slate-200">
+                             <div className="p-4 bg-orange-100 rounded-full text-orange-600">
+                                 <Construction className="w-12 h-12" />
+                             </div>
+                             <h2 className="text-2xl font-bold text-slate-700">תחת בנייה</h2>
+                             <p className="text-slate-500 text-sm">הסימולציה עבור עץ בינארי עדיין בפיתוח</p>
+                         </div>
+                    </div>
+                )
+            }
 
-        const NodePointer = ({ name, colorInfo }) => {
-          return (
-            React.createElement(motion.div, {
-              layoutId: `pointer-${name}`,
-              className: "absolute -top-16 left-0 right-0 flex flex-col items-center justify-end z-20 pointer-events-none",
-              initial: { opacity: 0, y: -20 },
-              animate: { opacity: 1, y: 0 },
-              exit: { opacity: 0, scale: 0 },
-              transition: { type: "spring", stiffness: 300, damping: 28 }
-            }, [
-              React.createElement("span", { 
-                key: "label",
-                className: `px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider shadow-sm mb-1 ${colorInfo.bg}` 
-              }, name),
-              React.createElement("div", { 
-                key: "line",
-                className: `w-0.5 h-6 ${colorInfo.bg}` 
-              }),
-              React.createElement("div", { 
-                key: "arrow",
-                className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-current",
-                style: { 
-                    color: colorInfo.text.replace('text-', '').replace('-500','').replace('-600','') === 'indigo' ? '#6366f1' : 
-                           colorInfo.text.includes('blue') ? '#2563eb' : 
-                           colorInfo.text.includes('orange') ? '#ea580c' : '#16a34a' 
-                } 
-              })
-            ])
-          );
-        };
+            if (activeDS === DATA_STRUCTURES.QUEUE) {
+                const mainQ = nodes.filter(n => !n.isTemp); const tempQ = nodes.filter(n => n.isTemp);
+                return (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 h-full relative">
+                        <AnimatePresence>{returnValue !== null && <ResultOverlay returnValue={returnValue} onDismiss={() => setReturnValue(null)} />}</AnimatePresence>
+                        <VariablesDisplay variables={variables} />
+                        
+                        <div className="w-full max-w-4xl flex flex-col gap-1 overflow-hidden mt-20">
+                          <div className="flex justify-between px-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                             <span>Exit / Head</span>
+                             <span>Entry</span>
+                          </div>
+                          <div className="relative p-4 pt-24 bg-slate-100 rounded-lg w-full flex items-center gap-2 overflow-x-auto min-h-[160px]">
+                              <AnimatePresence mode='popLayout'>
+                                  {mainQ.map((node, i) => (
+                                    <NodeComponent 
+                                      key={node.id} 
+                                      node={node} 
+                                      index={i} 
+                                      pointers={i === 0 ? { ...pointers, head: node.id } : {}} 
+                                      showNext={true} 
+                                      isList={false} 
+                                      arrowDirection="left"
+                                      hideNull={true}
+                                      hasNext={i < mainQ.length - 1}
+                                      showExit={i === 0}
+                                    />
+                                  ))}
+                              </AnimatePresence>
+                          </div>
+                        </div>
 
-        const NullPointer = ({ name, colorInfo }) => {
+                        {tempQ.length > 0 && (
+                            <div className="w-full max-w-4xl flex flex-col gap-1">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Temp Queue</div>
+                                <div className="relative p-4 pt-12 border-2 border-dashed border-slate-300 bg-slate-50 rounded-lg w-full flex items-center gap-2 overflow-x-auto min-h-[120px]">
+                                  <AnimatePresence mode='popLayout'>
+                                      {tempQ.map((node, i) => (
+                                          <NodeComponent 
+                                              key={node.id} 
+                                              node={node} 
+                                              index={i} 
+                                              pointers={{}} 
+                                              showNext={true} 
+                                              isList={false}
+                                              arrowDirection="left" 
+                                              hideNull={true}
+                                              hasNext={i < tempQ.length - 1}
+                                          />
+                                      ))}
+                                  </AnimatePresence>
+                                </div>
+                            </div>
+                        )}
+                        {miniMap && <div className="absolute bottom-8 right-8"><MiniMap mapData={miniMap} /></div>}
+                    </div>
+                )
+            }
+            if (activeDS === DATA_STRUCTURES.STACK) {
+                const mainStackNodes = nodes.filter(n => !n.isTemp); const tempStackNodes = nodes.filter(n => n.isTemp);
+                return (
+                    <div className="flex-1 flex flex-row items-end justify-center gap-8 pb-8 px-4 h-full relative">
+                         <AnimatePresence>{returnValue !== null && <ResultOverlay returnValue={returnValue} onDismiss={() => setReturnValue(null)} />}</AnimatePresence>
+                         <VariablesDisplay variables={variables} />
+                         <div className="flex flex-col items-center justify-end w-32 h-full">
+                             <AnimatePresence mode='popLayout'>
+                                 <div className="flex flex-col-reverse items-center w-full border-l-4 border-r-4 border-b-4 border-slate-300 bg-slate-100 rounded-b-xl p-2 min-h-[200px]">
+                                      {mainStackNodes.map((node, i) => <NodeComponent key={node.id} node={node} index={i} pointers={i === mainStackNodes.length - 1 ? { ...pointers, top: node.id } : {}} showNext={false} isVertical={true} />)}
+                                 </div>
+                             </AnimatePresence>
+                             <span className="font-bold text-slate-400 text-sm mt-2">STACK</span>
+                         </div>
+                         {tempStackNodes.length > 0 && <div className="flex flex-col items-center justify-end w-32 h-full"><div className="flex flex-col-reverse items-center w-full border-2 border-dashed border-slate-300 bg-slate-50 rounded-xl p-2 min-h-[200px]"><AnimatePresence mode='popLayout'>{tempStackNodes.map((node, i) => <NodeComponent key={node.id} node={node} index={i} pointers={{}} showNext={false} isVertical={true} />)}</AnimatePresence></div><span className="font-bold text-slate-400 text-sm mt-2">TEMP</span></div>}
+                         {miniMap && <div className="absolute bottom-8 right-8"><MiniMap mapData={miniMap} /></div>}
+                    </div>
+                );
+            }
             return (
-              React.createElement(motion.div, {
-                layoutId: `pointer-${name}`,
-                className: "absolute -top-16 left-0 right-0 flex flex-col items-center justify-end z-20 pointer-events-none",
-                initial: { opacity: 0, y: -20 },
-                animate: { opacity: 1, y: 0 },
-                exit: { opacity: 0, scale: 0 },
-                transition: { type: "spring", stiffness: 300, damping: 28 }
-              }, [
-                React.createElement("span", { 
-                    key: "label",
-                    className: `px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider shadow-sm mb-1 ${colorInfo.bg}` 
-                }, name),
-                React.createElement("div", { 
-                    key: "line",
-                    className: `w-0.5 h-6 ${colorInfo.bg}` 
-                }),
-                React.createElement("div", { 
-                    key: "arrow",
-                    className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-current",
-                    style: { 
-                        color: colorInfo.text.replace('text-', '').replace('-500','').replace('-600','') === 'indigo' ? '#6366f1' : 
-                               colorInfo.text.includes('blue') ? '#2563eb' : 
-                               colorInfo.text.includes('orange') ? '#ea580c' : '#16a34a' 
-                    } 
-                })
-              ])
+                <div className="flex flex-row h-full w-full">
+                    <div className="flex-1 p-8 pt-40 overflow-auto relative">
+                        <AnimatePresence>{returnValue !== null && <ResultOverlay returnValue={returnValue} onDismiss={() => setReturnValue(null)} />}</AnimatePresence>
+                        <VariablesDisplay variables={variables} />
+                        
+                        <AnimatePresence>
+                            {detachedNodes.map((node, i) => (
+                                <motion.div 
+                                  key={node.id}
+                                  initial={{ opacity: 0, y: -50 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.5 }}
+                                  className="absolute z-20"
+                                  style={{ top: '60px', left: `${100 + i * 120}px` }}
+                                >
+                                   <div className="text-xs font-bold text-slate-400 mb-1 text-center uppercase tracking-wider">New</div>
+                                   <NodeComponent node={node} index={i} pointers={pointers} showNext={true} />
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+
+                        <div className="flex flex-wrap items-start content-start gap-y-32">
+                            <AnimatePresence mode='popLayout'>
+                                {nodes.map((node, i) => <NodeComponent key={node.id} node={node} index={i} pointers={pointers} showNext={true} />)}
+                            </AnimatePresence>
+                            {nodes.length === 0 && <div className="text-slate-400 w-full text-center mt-20">Empty List (Head is Null)</div>}
+                        </div>
+                    </div>
+                    {miniMap && <div className="absolute bottom-8 right-8"><MiniMap mapData={miniMap} /></div>}
+                </div>
             );
         };
 
-        const LinkArrow = ({ isModified }) => (
-            React.createElement("div", { className: "flex items-center justify-center w-12 h-8 relative top-4 mx-1" },
-                React.createElement(motion.svg, {
-                    width: "100%", height: "10", viewBox: "0 0 50 10", overflow: "visible"
-                }, [
-                    React.createElement(motion.line, {
-                        key: "line",
-                        x1: "0", y1: "5", x2: "42", y2: "5",
-                        stroke: isModified ? "#f59e0b" : "#cbd5e1",
-                        strokeWidth: "3", strokeLinecap: "round",
-                        initial: { pathLength: 0 },
-                        animate: { pathLength: 1 },
-                        exit: { pathLength: 0, opacity: 0 },
-                        transition: { duration: 0.4, ease: "easeInOut" }
-                    }),
-                    React.createElement(motion.path, {
-                        key: "head",
-                        d: "M 42 5 L 36 2 L 36 8 Z",
-                        fill: isModified ? "#f59e0b" : "#cbd5e1",
-                        initial: { scale: 0, opacity: 0 },
-                        animate: { scale: 1, opacity: 1 },
-                        exit: { scale: 0, opacity: 0 },
-                        transition: { delay: 0.3, duration: 0.2 }
-                    })
-                ]),
-                isModified && React.createElement(motion.div, {
-                    className: "absolute inset-0 bg-orange-400/20 rounded-full blur-md",
-                    initial: { opacity: 0, scale: 0.5 },
-                    animate: { opacity: [0, 1, 0], scale: 1.5 },
-                    transition: { duration: 0.8, repeat: Infinity }
-                })
-            )
+        return (
+          <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden" dir="ltr">
+            <header className="flex-none bg-white border-b border-slate-200 p-4 flex justify-between items-center shadow-sm z-50" dir="rtl">
+               <div className="flex flex-col justify-center">
+                  <div className="flex items-center gap-2">
+                      <Layers className="text-indigo-600 w-6 h-6" />
+                      <h1 className="font-bold text-lg text-slate-800">סימולטור מבנה נתונים לפי מחלקות בגרות</h1>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium">נוצר על ידי טל סימון רכז הנדסת תוכנה מטרווסט רעננה</span>
+               </div>
+               
+               <div className="flex gap-2" dir="ltr">{Object.values(DATA_STRUCTURES).map(ds => <button key={ds} onClick={() => setActiveDS(ds)} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${activeDS === ds ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{ds}</button>)}</div>
+               <div className="flex gap-1 bg-slate-100 p-1 rounded" dir="ltr"><button onClick={() => setLang('java')} className={`px-2 py-1 text-[10px] font-bold rounded ${lang === 'java' ? 'bg-white shadow' : 'text-slate-500'}`}>JAVA</button><button onClick={() => setLang('csharp')} className={`px-2 py-1 text-[10px] font-bold rounded ${lang === 'csharp' ? 'bg-white shadow' : 'text-slate-500'}`}>C#</button></div>
+            </header>
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+                <aside className="flex-none w-full md:w-64 bg-white border-b md:border-r border-slate-200 flex flex-col z-40 max-h-[30vh] md:max-h-full overflow-y-auto">
+                    <div className="p-4 space-y-6">
+                        <div className="space-y-3">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Operation</label>
+                            <select className="w-full p-2 border border-slate-300 rounded text-sm bg-white" value={selectedMethod} onChange={(e) => setSelectedMethod(e.target.value)} disabled={activeDS === DATA_STRUCTURES.BINARY_TREE}>
+                                {OPS_CONFIG[activeDS]?.map(op => <option key={op.value} value={op.value}>{op.label}</option>)}
+                            </select>
+                            {activeDS !== DATA_STRUCTURES.BINARY_TREE && showValInput && <input type="number" placeholder="Value" className="w-full p-2 border rounded text-sm" value={inputVal} onChange={e => setInputVal(e.target.value)} />}
+                            {activeDS !== DATA_STRUCTURES.BINARY_TREE && showTargetInput && <input type="number" placeholder="Target" className="w-full p-2 border rounded text-sm bg-orange-50" value={inputTarget} onChange={e => setInputTarget(e.target.value)} />}
+                            <button onClick={runOperation} className={`${BTN_STYLES.primary} ${activeDS === DATA_STRUCTURES.BINARY_TREE ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={activeDS === DATA_STRUCTURES.BINARY_TREE}>
+                                <Play className="w-4 h-4" /> Run
+                            </button>
+                        </div>
+                        <div className="space-y-3 pt-4 border-t border-slate-100"><div className="flex justify-between text-xs text-slate-500"><span>Speed</span><span>{playbackSpeed}ms</span></div><input type="range" min="100" max="2000" step="100" value={playbackSpeed} onChange={e => setPlaybackSpeed(Number(e.target.value))} className="w-full" /><div className="flex justify-center gap-2"><button className="p-2 hover:bg-slate-100 rounded" onClick={() => setCurrentFrameIndex(Math.max(0, currentFrameIndex-1))}><SkipBack className="w-4 h-4"/></button><button className="p-2 bg-indigo-100 text-indigo-700 rounded" onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? <Pause className="w-4 h-4"/> : <Play className="w-4 h-4"/>}</button><button className="p-2 hover:bg-slate-100 rounded" onClick={() => setCurrentFrameIndex(Math.min(frames.length-1, currentFrameIndex+1))}><SkipForward className="w-4 h-4"/></button></div></div>
+                        <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
+                            <button onClick={handleGenerate} disabled={activeDS === DATA_STRUCTURES.BINARY_TREE} className={`p-2 bg-emerald-50 text-emerald-600 rounded text-xs font-bold flex flex-col items-center ${activeDS === DATA_STRUCTURES.BINARY_TREE ? 'opacity-50 cursor-not-allowed' : ''}`}><PlusCircle className="w-4 h-4 mb-1"/>Gen</button>
+                            <button onClick={handleClear} className="p-2 bg-red-50 text-red-600 rounded text-xs font-bold flex flex-col items-center"><Trash2 className="w-4 h-4 mb-1"/>Clear</button>
+                        </div>
+                    </div>
+                </aside>
+                <main className="flex-1 flex flex-col relative bg-slate-50/50 overflow-hidden">
+                    <div className="absolute top-4 left-4 z-30 flex items-center gap-3"><span className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold shadow-sm text-slate-600">{statusMsg}</span></div>
+                    <div className="flex-1 overflow-auto relative">{renderVisuals()}</div>
+                    {activeDS !== DATA_STRUCTURES.BINARY_TREE && (
+                        <div className="flex-none h-48 bg-[#1e1e1e] border-t border-slate-700 flex flex-col z-30 shadow-2xl">
+                            <div className="px-4 py-2 bg-[#2d2d2d] flex justify-between items-center border-b border-black"><div className="flex items-center gap-2"><Code className="w-4 h-4 text-blue-400" /><span className="text-xs font-mono text-slate-300">Source Code</span></div><span className="text-[10px] text-slate-500 uppercase">{lang}</span></div>
+                            <div className="flex-1 overflow-auto p-4 font-mono text-xs md:text-sm leading-relaxed">{safeCodeSnippet.split('\n').map((line, i) => (<div key={i} className={`flex ${frames[currentFrameIndex]?.highlightLine === i+1 ? 'bg-yellow-900/40 text-yellow-200' : 'text-slate-400'}`}><span className="w-8 text-right mr-4 select-none opacity-50">{i+1}</span><span className="whitespace-pre">{line}</span></div>))}</div>
+                        </div>
+                    )}
+                </main>
+            </div>
+          </div>
         );
+      }
 
-        const NullBlock = forwardRef(({ pointers }, ref) => (
-            React.createElement(motion.div, {
-                ref: ref,
-                initial: { opacity: 0, scale: 0.5 },
-                animate: { opacity: 1, scale: 1 },
-                exit: { opacity: 0, scale: 0.5 },
-                className: "relative flex flex-col items-center mx-2"
-            }, [
-                React.createElement("div", { 
-                    key: "pointers",
-                    className: "absolute -top-10 left-0 right-0 flex justify-center h-10 w-full pointer-events-none" 
-                }, pointers && pointers.map(p => (
-                     React.createElement("div", { key: p.name, className: "relative w-0" },
-                         React.createElement(NullPointer, { name: p.name, colorInfo: p.color })
-                     )
-                ))),
-                React.createElement("div", { key: "block", className: "flex items-center self-center opacity-50 mt-8" }, [
-                    React.createElement("div", { key: "line", className: "h-[2px] w-4 bg-slate-300" }),
-                    React.createElement("div", { key: "box", className: "border-2 border-slate-300 rounded px-2 py-1 text-[10px] font-mono font-bold text-slate-400 bg-slate-50" }, "NULL")
-                ])
-            ])
-        ));
-        NullBlock.displayName = "NullBlock";
-
-        function LinkedListAnimator() {
-          const [list, setList] = useState([]); 
-          const [inputValue, setInputValue] = useState('');
-          const [targetValue, setTargetValue] = useState('');
-          const [selectedOp, setSelectedOp] = useState(OPS.ADD_FIRST);
-          const [language, setLanguage] = useState('java');
-          const [timeline, setTimeline] = useState([]);
-          const [currentStep, setCurrentStep] = useState(0);
-          const [isPlaying, setIsPlaying] = useState(false);
-          const [speed, setSpeed] = useState(800);
-          const [message, setMessage] = useState("הרשימה ריקה. נסה להוסיף חוליה."); // Translated initial message
-          const [isFullscreen, setIsFullscreen] = useState(false);
-          const containerRef = useRef(null);
-
-          const currentSnapshot = timeline[currentStep] || {
-            listState: list,
-            pointers: { head: list.length > 0 ? list[0].id : null },
-            highlightLine: -1,
-            floatNodes: [],
-            returnInfo: null, 
-            variables: {},
-            gcNodeId: null,
-            activeLinkId: null,
-            isCounting: false
-          };
-
-          useEffect(() => {
-            const handleFullscreenChange = () => {
-              setIsFullscreen(!!document.fullscreenElement);
-            };
-            document.addEventListener("fullscreenchange", handleFullscreenChange);
-            return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-          }, []);
-
-          const toggleFullScreen = () => {
-            if (!document.fullscreenElement) {
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.warn(`Full-screen unavailable: ${err.message}`);
-                    });
-                }
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen().catch(err => console.warn(err));
-                }
-            }
-          };
-
-          const generateTrace = (startList) => {
-            const steps = [];
-            const clone = (l) => JSON.parse(JSON.stringify(l));
-            let tempList = clone(startList);
-            
-            let activePointers = { 
-                head: tempList.length > 0 ? tempList[0].id : 'NULL',
-                lst: null,
-                current: null,
-                tail: null, 
-                prev: null,
-                newNode: null 
-            };
-
-            const addStep = (pointerUpdates, lineNo, msg, floatNodes = [], overrideList = null, returnInfo = null, variables = {}, gcNodeId = null, activeLinkId = null, isCounting = false) => {
-              activePointers = { ...activePointers, ...pointerUpdates };
-
-              const currentState = overrideList || tempList;
-              const validNodeIds = new Set(currentState.map(n => n.id));
-              if (floatNodes) floatNodes.forEach(n => validNodeIds.add(n.id));
-
-              const displayPointers = {};
-              Object.keys(activePointers).forEach(key => {
-                  const target = activePointers[key];
-                  if (target === null) return;
-                  if (target === 'NULL') displayPointers[key] = 'NULL';
-                  else if (key === 'head') displayPointers[key] = target;
-                  else if (validNodeIds.has(target)) displayPointers[key] = target;
-              });
-
-              steps.push({
-                listState: currentState ? clone(currentState) : [],
-                pointers: { ...displayPointers },
-                highlightLine: lineNo,
-                message: msg,
-                floatNodes: floatNodes ? clone(floatNodes) : [],
-                returnInfo: returnInfo,
-                variables: variables,
-                gcNodeId: gcNodeId,
-                activeLinkId: activeLinkId,
-                isCounting: isCounting
-              });
-            };
-
-            const finishTrace = (pointerUpdates, msg, finalState, returnInfo = null, variables = {}) => {
-                const cleanedPointers = { 
-                    ...pointerUpdates, 
-                    lst: null, current: null, tail: null, prev: null, newNode: null 
-                };
-                addStep(cleanedPointers, -1, msg, [], finalState, returnInfo, variables);
-            };
-
-            addStep({}, 0, "Start Operation");
-
-            if (selectedOp === OPS.ADD_FIRST) {
-              const newNodeId = 'new_' + Date.now() + Math.random();
-              const valInt = parseInt(inputValue) || 0;
-              const newNodeObj = { id: newNodeId, val: valInt, next: null };
-              
-              const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
-              
-              addStep({ lst: initHeadId }, 1, `Node newNode = new Node(${valInt})`, [newNodeObj]);
-              addStep({ newNode: newNodeId }, 2, "newNode.SetNext(lst)", [newNodeObj], null, null, {}, null, newNodeId);
-              
-              newNodeObj.next = (initHeadId === 'NULL') ? null : initHeadId;
-              const newList = [newNodeObj, ...tempList];
-              
-              addStep({ head: newNodeId }, 3, "return newNode", [], newList, { type: 'ref', value: 'newNode', nodeId: newNodeId });
-              finishTrace({ head: newNodeId }, "Operation Complete", newList);
-            }
-
-            else if (selectedOp === OPS.ADD_LAST) {
-                const newNodeId = 'new_' + Date.now() + Math.random();
-                const valInt = parseInt(inputValue) || 0;
-                const newNodeObj = { id: newNodeId, val: valInt, next: null };
-                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
-
-                addStep({ lst: initHeadId }, 1, "Check if lst == null");
-
-                if (tempList.length === 0) {
-                    addStep({}, 2, "lst == null -> True", [newNodeObj]);
-                    addStep({ head: newNodeId }, 2, "return new Node()", [newNodeObj], [newNodeObj], { type: 'ref', value: 'new Node', nodeId: newNodeId });
-                    finishTrace({ head: newNodeId }, "Operation Complete", [newNodeObj]);
-                } else {
-                    addStep({}, 2, "lst == null -> False");
-                    
-                    let tail = tempList[0];
-                    addStep({ tail: tail.id }, 5, "Node tail = lst");
-
-                    while (tail.next !== null) {
-                        addStep({}, 6, "tail.GetNext() != null -> True");
-                        addStep({}, 7, "tail = tail.GetNext()");
-                        tail = tempList.find(n => n.id === tail.next);
-                        addStep({ tail: tail.id }, 7, "Advanced tail");
-                    }
-                    
-                    addStep({}, 6, "tail.GetNext() != null -> False");
-                    
-                    addStep({ newNode: newNodeId }, 9, `tail.SetNext(new Node(${valInt}))`, [newNodeObj], null, null, {}, null, tail.id);
-                    
-                    tail.next = newNodeId;
-                    tempList = [...tempList, newNodeObj];
-                    
-                    addStep({}, 10, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
-                    finishTrace({}, "Operation Complete", tempList);
-                }
-            }
-
-            else if (selectedOp === OPS.ADD_AFTER) {
-                let curr = tempList.length > 0 ? tempList[0] : null;
-                addStep({ current: curr ? curr.id : 'NULL' }, 1, "Node current = head");
-
-                while (curr && curr.val !== targetValue) {
-                    addStep({}, 2, `current.GetValue() (${curr.val}) != target (${targetValue})`);
-                    curr = tempList.find(n => n.id === curr.next);
-                    if (curr) {
-                         addStep({ current: curr.id }, 3, "current = current.GetNext()");
-                    } else {
-                         addStep({ current: 'NULL' }, 2, "current is null (Not Found)");
-                    }
-                }
-
-                if (curr) {
-                    const newNodeId = 'new_' + Date.now() + Math.random();
-                    const valInt = parseInt(inputValue) || 0;
-                    const newNodeObj = { id: newNodeId, val: valInt, next: null };
-                    
-                    addStep({}, 5, "Target found (current != null)");
-                    addStep({ newNode: newNodeId }, 6, `Node newNode = new Node(${valInt})`, [newNodeObj]);
-                    
-                    newNodeObj.next = curr.next; 
-                    addStep({}, 7, "newNode.SetNext(current.GetNext())", [newNodeObj], null, null, {}, null, newNodeId);
-                    
-                    const idx = tempList.findIndex(n => n.id === curr.id);
-                    curr.next = newNodeId; 
-                    tempList.splice(idx + 1, 0, newNodeObj); 
-                    
-                    addStep({}, 8, "current.SetNext(newNode)", [], tempList, null, {}, null, curr.id);
-                    finishTrace({}, "Done", tempList);
-                } else {
-                    addStep({}, 5, "if (current != null) -> False");
-                    finishTrace({}, "Done", tempList);
-                }
-            }
-
-            else if (selectedOp === OPS.ADD_BEFORE) {
-                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
-                addStep({ lst: initHeadId }, 1, "Check if lst == null");
-
-                if (tempList.length === 0) {
-                    addStep({}, 1, "lst is null -> True, return null");
-                    finishTrace({}, "Done", tempList, { type: 'ref', value: 'null', nodeId: null });
-                    return steps;
-                }
-
-                addStep({}, 1, "lst is null -> False");
-
-                if (tempList[0].val === targetValue) {
-                    addStep({}, 2, "lst.GetValue() == target -> True");
-                    addStep({}, 3, "return AddFirst(lst, val)"); 
-                    
-                    const newNodeId = 'new_' + Date.now() + Math.random();
-                    const valInt = parseInt(inputValue) || 0;
-                    const newNodeObj = { id: newNodeId, val: valInt, next: tempList[0].id };
-                    
-                    tempList = [newNodeObj, ...tempList];
-                    
-                    addStep({ head: newNodeId }, 3, "Returning new Head", [], tempList, { type: 'ref', value: 'new Head', nodeId: newNodeId });
-                    finishTrace({ head: newNodeId }, "Added First", tempList);
-                    return steps;
-                }
-                
-                addStep({}, 2, "lst.GetValue() == target -> False");
-
-                let prev = null;
-                let curr = tempList[0];
-                addStep({ current: curr.id, prev: 'NULL' }, 6, "Node prev = null, current = lst");
-
-                while(curr && curr.val !== targetValue) {
-                    addStep({}, 7, `Loop: current.GetValue() (${curr.val}) != target`);
-                    prev = curr;
-                    curr = tempList.find(n => n.id === curr.next);
-                    addStep({ current: curr ? curr.id : 'NULL', prev: prev.id }, 8, "prev = current; current = current.GetNext()");
-                }
-
-                if (curr) {
-                     const newNodeId = 'new_' + Date.now() + Math.random();
-                     const valInt = parseInt(inputValue) || 0;
-                     const newNodeObj = { id: newNodeId, val: valInt, next: curr.id };
-                     
-                     addStep({}, 10, "Target found (current != null)");
-                     addStep({ newNode: newNodeId }, 11, `Node newNode = new Node(${valInt})`, [newNodeObj]);
-                     addStep({}, 12, "newNode.SetNext(current)", [newNodeObj], null, null, {}, null, newNodeId);
-                     const prevIdx = tempList.findIndex(n => n.id === prev.id);
-                     prev.next = newNodeId;
-                     tempList.splice(prevIdx + 1, 0, newNodeObj);
-                     addStep({}, 13, "prev.SetNext(newNode)", [], tempList, null, {}, null, prev.id);
-                     
-                     addStep({}, 15, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
-                     finishTrace({}, "return lst", tempList);
-                } else {
-                     addStep({}, 10, "if (current != null) -> False");
-                     addStep({}, 15, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
-                     finishTrace({}, "return lst (Not found)", tempList);
-                }
-            }
-
-            else if (selectedOp === OPS.DELETE) {
-                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
-                addStep({ lst: initHeadId }, 1, "Check if lst == null");
-
-                if (tempList.length === 0) {
-                    addStep({}, 1, "lst is null -> True, return null");
-                    finishTrace({}, "Done", tempList, { type: 'ref', value: 'null', nodeId: null });
-                    return steps;
-                }
-                
-                if (tempList[0].val === targetValue) {
-                    addStep({}, 2, "lst.GetValue() == target -> True");
-                    
-                    const oldHead = tempList[0];
-                    const nextHeadId = tempList.length > 1 ? tempList[1].id : 'NULL';
-                    
-                    addStep({ head: nextHeadId }, 3, "return lst.GetNext()", [], tempList, { type: 'ref', value: 'next', nodeId: nextHeadId === 'NULL' ? null : nextHeadId }, {}, oldHead.id);
-                    
-                    const newList = [...tempList];
-                    newList.shift();
-                    
-                    finishTrace({ head: nextHeadId }, "Head Deleted", newList);
-                    return steps;
-                }
-
-                addStep({}, 2, "lst.GetValue() == target -> False");
-
-                let prev = null;
-                let curr = tempList[0];
-                addStep({ current: curr.id, prev: 'NULL' }, 6, "Init pointers: prev=null, curr=lst");
-
-                while (curr && curr.val !== targetValue) {
-                     addStep({}, 7, "Check loop condition (val != target)");
-                     prev = curr;
-                     curr = tempList.find(n => n.id === curr.next);
-                     addStep({ current: curr ? curr.id : 'NULL', prev: prev ? prev.id : 'NULL' }, 9, "Advance pointers");
-                }
-
-                if (curr) {
-                    addStep({}, 11, "Target found (curr != null)");
-                    const prevNode = tempList.find(n => n.id === prev.id);
-                    if (prevNode) {
-                        prevNode.next = curr.next;
-                    }
-                    addStep({}, 12, "prev.SetNext(current.GetNext()) - Link Broken", [], tempList, null, {}, null, prev.id);
-                    addStep({}, 13, "Garbage Collection...", [], tempList, null, {}, curr.id);
-
-                    const finalList = tempList.filter(n => n.id !== curr.id);
-                    
-                    addStep({}, 14, "return lst", [], finalList, { type: 'ref', value: 'lst', nodeId: initHeadId });
-                    finishTrace({ current: null, prev: null }, "Node removed", finalList);
-                } else {
-                    addStep({}, 11, "Target not found");
-                    addStep({}, 14, "return lst", [], tempList, { type: 'ref', value: 'lst', nodeId: initHeadId });
-                    finishTrace({}, "Done", tempList);
-                }
-            }
-
-            else if (selectedOp === OPS.FIND) {
-                const initHeadId = tempList.length > 0 ? tempList[0].id : 'NULL';
-                addStep({ lst: initHeadId }, 1, "Method call Find(lst, target)");
-                let curr = tempList.length > 0 ? tempList[0] : null;
-                addStep({ current: initHeadId }, 2, "Node current = lst");
-                
-                while(curr) {
-                    addStep({}, 3, "current != null -> True");
-                    
-                    if (curr.val === targetValue) {
-                        addStep({}, 4, `current.GetValue() (${curr.val}) == target -> True`, [], null, curr.id);
-                        addStep({}, 5, "return true", [], null, { type: 'val', value: 'true', nodeId: curr.id });
-                        const finalPointers = { current: null, lst: null, head: activePointers.head };
-                        finishTrace(finalPointers, "Found match!", tempList);
-                        return steps;
-                    }
-                    addStep({}, 4, `current.GetValue() (${curr.val}) != target -> False`);
-                    curr = tempList.find(n => n.id === curr.next);
-                    addStep({ current: curr ? curr.id : 'NULL' }, 7, "current = current.GetNext()");
-                }
-                
-                addStep({}, 3, "current != null -> False");
-                addStep({}, 8, "return false", [], null, { type: 'val', value: 'false' });
-                finishTrace({ current: null, lst: null }, "Not found", tempList);
-            }
-
-            else if (selectedOp === OPS.COUNT) {
-                let count = 0;
-                let curr = tempList.length > 0 ? tempList[0] : null;
-                addStep({ current: curr ? curr.id : 'NULL' }, 1, "Init count=0, curr=head", [], null, null, { count: 0 });
-                
-                while(curr) {
-                     addStep({}, 3, "current != null", [], null, null, { count: count });
-                     // Count increment visual step
-                     count++;
-                     addStep({}, 4, `count++ (${count})`, [], null, null, { count: count }, null, null, true);
-                     curr = tempList.find(n => n.id === curr.next);
-                     addStep({ current: curr ? curr.id : 'NULL' }, 5, "current = current.GetNext()", [], null, null, { count: count });
-                }
-                addStep({}, 7, `return ${count}`, [], null, { type: 'val', value: count.toString() }, { count: count });
-                finishTrace({}, "Done", tempList, null, { count: count });
-            }
-
-            return steps;
-          };
-
-          useEffect(() => {
-            let timer;
-            if (isPlaying && currentStep < timeline.length - 1) {
-              timer = setTimeout(() => {
-                setCurrentStep(prev => prev + 1);
-              }, speed);
-            } else if (currentStep >= timeline.length - 1 && isPlaying) {
-              setIsPlaying(false);
-              const lastStep = timeline[timeline.length - 1];
-              if (lastStep && lastStep.listState) {
-                setList(lastStep.listState); 
-              }
-            }
-            return () => clearTimeout(timer);
-          }, [isPlaying, currentStep, timeline, speed]);
-
-          const handleRun = () => {
-            let startState = [...list];
-            if (timeline.length > 0) {
-                const lastStep = timeline[timeline.length - 1];
-                if (lastStep && lastStep.listState) {
-                    startState = lastStep.listState;
-                    setList(startState);
-                }
-            }
-            const trace = generateTrace(startState);
-            setTimeline(trace);
-            setCurrentStep(0);
-            setIsPlaying(true);
-            setInputValue(''); 
-            setTargetValue('');
-            setMessage("Running...");
-          };
-
-          const handleReset = () => {
-            setList([]);
-            setTimeline([]);
-            setCurrentStep(0);
-            setIsPlaying(false);
-            setMessage("הרשימה אותחלה.");
-          };
-
-          return (
-            React.createElement("div", { ref: containerRef, className: "min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800" },
-              React.createElement("header", { className: "bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm z-30", dir: "rtl" },
-                React.createElement("div", { className: "flex items-center gap-3" },
-                  React.createElement("div", { className: "bg-indigo-600 text-white p-2 rounded-lg shadow-md" },
-                    React.createElement(MousePointer2, { size: 24 })
-                  ),
-                  React.createElement("div", { className: "text-right" },
-                    React.createElement("h1", { className: "text-2xl font-bold text-slate-900 tracking-tight" }, "פעולות על שרשרת חוליות - עפ\"י מחלקות לבגרות"),
-                    React.createElement("p", { className: "text-xs text-slate-500 font-medium" }, "נוצר על ידי טל סימון - רכז הנדסת תוכנה, מטרווסט רעננה")
-                  )
-                ),
-                React.createElement("div", { className: "flex items-center gap-4" },
-                  React.createElement("button", {
-                    onClick: toggleFullScreen,
-                    className: "p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors",
-                    title: isFullscreen ? "Exit Full Screen" : "Full Screen"
-                  }, isFullscreen ? React.createElement(Minimize, { size: 20 }) : React.createElement(Maximize, { size: 20 })),
-                  React.createElement("div", { className: "flex bg-slate-100 p-1 rounded-lg border border-slate-200" },
-                    React.createElement("button", {
-                      onClick: () => setLanguage('java'),
-                      className: `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${language === 'java' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
-                    }, "Java"),
-                    React.createElement("button", {
-                      onClick: () => setLanguage('csharp'),
-                      className: `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${language === 'csharp' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
-                    }, "C#")
-                  )
-                )
-              ),
-              React.createElement("div", { className: "flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden", dir: "ltr" },
-                React.createElement("div", { className: "lg:col-span-3 flex flex-col gap-4" },
-                  React.createElement("div", { className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" },
-                    React.createElement("div", { className: "bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center gap-2" },
-                      React.createElement(Settings, { className: "text-slate-400", size: 18 }),
-                      React.createElement("h2", { className: "font-bold text-sm text-slate-700 uppercase tracking-wide" }, "Operations")
-                    ),
-                    React.createElement("div", { className: "p-4 space-y-4" },
-                      React.createElement("div", { className: "space-y-2" },
-                        React.createElement("label", { className: "text-xs font-semibold text-slate-400 uppercase" }, "Select Method"),
-                        React.createElement("div", { className: "relative" },
-                          React.createElement("select", {
-                            value: selectedOp,
-                            onChange: (e) => {
-                              setSelectedOp(e.target.value);
-                              setTimeline([]);
-                              setCurrentStep(0);
-                              setMessage("Ready.");
-                            },
-                            className: "w-full appearance-none bg-slate-50 border border-slate-300 text-slate-700 py-2.5 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-sm transition-shadow"
-                          }, Object.entries(OPS).map(([k, v]) => (
-                              React.createElement("option", { key: k, value: v }, v.replace(/([A-Z])/g, ' $1').trim())
-                          ))),
-                          React.createElement("div", { className: "absolute right-3 top-3 pointer-events-none text-slate-500" },
-                             React.createElement(Settings, { size: 14 })
-                          )
-                        )
-                      ),
-                      React.createElement("div", { className: "grid grid-cols-2 gap-3" },
-                        selectedOp.toLowerCase().includes('add') && React.createElement("div", { className: "col-span-2 md:col-span-1" },
-                            React.createElement("label", { className: "text-[10px] font-bold text-slate-400 uppercase mb-1 block" }, "New Value"),
-                            React.createElement("input", {
-                                type: "text",
-                                className: "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none",
-                                value: inputValue,
-                                placeholder: "#",
-                                onChange: (e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^-?\d*$/.test(val)) {
-                                        setInputValue(val);
-                                    }
-                                }
-                            })
-                        ),
-                        ['addAfter', 'addBefore', 'delete', 'find'].includes(selectedOp) && React.createElement("div", { className: "col-span-2 md:col-span-1" },
-                            React.createElement("label", { className: "text-[10px] font-bold text-slate-400 uppercase mb-1 block" }, "Target"),
-                            React.createElement("input", {
-                                type: "number",
-                                className: "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none",
-                                value: targetValue,
-                                onChange: (e) => setTargetValue(parseInt(e.target.value) || 0)
-                            })
-                        )
-                      )
-                    )
-                  ),
-                  React.createElement("div", { className: "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col" },
-                    React.createElement("div", { className: "bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between" },
-                        React.createElement("div", { className: "flex items-center gap-2" },
-                            React.createElement(Play, { className: "text-slate-400", size: 18 }),
-                            React.createElement("h2", { className: "font-bold text-sm text-slate-700 uppercase tracking-wide" }, "Controls")
-                        ),
-                        React.createElement("button", { onClick: handleReset, title: "Clear List", className: "text-slate-400 hover:text-red-500 transition-colors" },
-                            React.createElement(RefreshCcw, { size: 16 })
-                        )
-                    ),
-                    React.createElement("div", { className: "p-4 flex flex-col justify-between flex-1 gap-6" },
-                        React.createElement("div", { className: "flex items-center justify-center gap-4" },
-                            React.createElement("button", { onClick: () => setCurrentStep(Math.max(0, currentStep - 1)), className: "p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors" },
-                                React.createElement(SkipBack, { size: 20 })
-                            ),
-                            React.createElement("button", {
-                                onClick: () => {
-                                    if (timeline.length === 0 || currentStep >= timeline.length - 1) {
-                                        handleRun();
-                                    } else {
-                                        setIsPlaying(!isPlaying);
-                                    }
-                                },
-                                className: `w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-all active:scale-95 ${isPlaying ? 'bg-orange-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`
-                            }, isPlaying ? React.createElement(Pause, { size: 24, fill: "currentColor" }) : React.createElement(Play, { size: 24, fill: "currentColor", className: "ml-1" })),
-                            React.createElement("button", { onClick: () => setCurrentStep(Math.min(timeline.length - 1, currentStep + 1)), className: "p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors" },
-                                React.createElement(SkipForward, { size: 20 })
-                            )
-                        ),
-                        React.createElement("div", { className: "space-y-2" },
-                            React.createElement("div", { className: "flex justify-between text-[10px] font-bold text-slate-400 uppercase" },
-                                React.createElement("span", null, "Slow"),
-                                React.createElement("span", null, "Fast")
-                            ),
-                            React.createElement("input", {
-                                type: "range", min: "100", max: "1500", step: "100",
-                                value: 1600 - speed,
-                                onChange: (e) => setSpeed(1600 - parseInt(e.target.value)),
-                                className: "w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                            })
-                        ),
-                        React.createElement("div", { className: "bg-slate-900 rounded-lg p-3 font-mono text-xs text-green-400 border border-slate-800 min-h-[60px]" },
-                            React.createElement("span", { className: "text-slate-500 mr-2" }, ">"),
-                            currentSnapshot.message
-                        )
-                    )
-                  )
-                ),
-                React.createElement("div", { className: "lg:col-span-9 flex flex-col bg-slate-100 rounded-2xl border-4 border-white shadow-xl overflow-hidden relative" },
-                    React.createElement("div", { className: "flex-1 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] overflow-auto relative flex flex-col" },
-                        React.createElement("div", { className: "absolute top-4 right-4 flex gap-3 z-10 bg-white/80 backdrop-blur p-2 rounded-lg border border-slate-200 shadow-sm" },
-                            Object.entries(POINTER_COLORS).map(([key, colors]) => (
-                                React.createElement("div", { key: key, className: "flex items-center gap-1.5" },
-                                    React.createElement("div", { className: `w-2 h-2 rounded-full ${colors.bg}` }),
-                                    React.createElement("span", { className: `text-[10px] font-bold uppercase ${colors.text}` }, key)
-                                )
-                            ))
-                        ),
-                        currentSnapshot.variables && currentSnapshot.variables.count !== undefined && (
-                            React.createElement(motion.div, {
-                                key: currentSnapshot.variables.count,
-                                initial: { scale: 1 },
-                                animate: { scale: [1, 1.2, 1] },
-                                className: "absolute top-4 left-4 z-10 bg-white/80 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center"
-                            }, [
-                                React.createElement("span", { key: "l", className: "text-[10px] font-bold uppercase text-slate-400 mb-1 flex items-center gap-1" }, [
-                                    React.createElement(Calculator, { key: "i", size: 12 }), " Count"
-                                ]),
-                                React.createElement("span", { key: "v", className: "text-2xl font-mono font-bold text-indigo-600" }, currentSnapshot.variables.count)
-                            ])
-                        ),
-                        React.createElement("div", { className: "flex-1 min-h-[400px] flex items-center px-10 pt-16 pb-4 overflow-x-auto relative" },
-                            React.createElement(AnimatePresence, null, 
-                                currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'val' && (
-                                    React.createElement(motion.div, {
-                                        initial: { opacity: 0, y: 20, scale: 0.9 },
-                                        animate: { opacity: 1, y: 0, scale: 1 },
-                                        exit: { opacity: 0 },
-                                        className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-indigo-900/90 text-white p-6 rounded-2xl shadow-2xl border border-indigo-500/50 backdrop-blur-sm flex flex-col items-center gap-2"
-                                    }, [
-                                        React.createElement("div", { key: "t", className: "text-xs uppercase tracking-widest font-bold text-indigo-300" }, "Method Returns"),
-                                        React.createElement("div", { key: "v", className: "text-4xl font-mono font-bold text-white flex items-center gap-3" }, [
-                                            React.createElement(CornerDownLeft, { key: "i", className: "opacity-50" }),
-                                            currentSnapshot.returnInfo.value
-                                        ])
-                                    ])
-                                )
-                            ),
-                            React.createElement("div", { className: "flex flex-col items-center mr-6 relative" },
-                                currentSnapshot.pointers.head && currentSnapshot.pointers.head !== 'NULL' ? (
-                                    React.createElement(motion.div, { initial: {opacity:0}, animate: {opacity:1}, className: "flex flex-col items-center" }, [
-                                        React.createElement("span", { key: "l", className: "text-xs font-bold uppercase mb-1 text-purple-600" }, "Head"),
-                                        React.createElement("div", { key: "d", className: "w-3 h-3 rounded-full bg-purple-600 mb-1" }),
-                                        React.createElement("div", { key: "ln", className: "h-8 w-0.5 bg-purple-600" }),
-                                        React.createElement("div", { key: "a", className: "w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-purple-600" })
-                                    ])
-                                ) : (
-                                    React.createElement("div", { className: "flex flex-col items-center opacity-50" }, [
-                                        React.createElement("span", { className: "text-xs font-bold uppercase mb-1 text-slate-400" }, "Head"),
-                                        React.createElement("div", { className: "w-3 h-3 rounded-full bg-slate-300" }),
-                                        React.createElement("div", { className: "mt-2 text-xs font-mono text-slate-400" }, "null")
-                                    ])
-                                )
-                            ),
-                            React.createElement(AnimatePresence, { mode: 'popLayout' },
-                                currentSnapshot.listState.map((node) => {
-                                    const isNew = currentSnapshot.pointers.newNode === node.id;
-                                    const isReturnedRef = currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'ref' && currentSnapshot.returnInfo.nodeId === node.id;
-                                    const isFound = currentSnapshot.returnInfo && currentSnapshot.returnInfo.type === 'val' && currentSnapshot.returnInfo.nodeId === node.id;
-                                    const isGC = currentSnapshot.gcNodeId === node.id;
-                                    const isActiveLink = currentSnapshot.activeLinkId === node.id;
-                                    const showPlusOne = currentSnapshot.isCounting && currentSnapshot.pointers.current === node.id;
-
-                                    return React.createElement(motion.div, {
-                                        key: node.id,
-                                        layout: true,
-                                        initial: { opacity: 0, scale: 0.8, y: 20 },
-                                        animate: (isReturnedRef || isFound) ? { scale: 1.05, opacity: 1, y: 0, transition: { scale: { duration: 0.4, repeat: Infinity, repeatType: "reverse" } } } : isGC ? { opacity: 0.5, scale: 0.9, y: 10 } : { opacity: 1, scale: 1, y: 0 },
-                                        exit: { opacity: 0, scale: 0.8, y: -20 },
-                                        transition: { type: "spring", stiffness: 400, damping: 25 },
-                                        className: "flex items-start group"
-                                    }, [
-                                        React.createElement("div", { key: "node-wrapper", className: "relative mx-1" }, [
-                                            currentSnapshot.pointers.lst === node.id && React.createElement(NodePointer, { name: "lst", colorInfo: POINTER_COLORS.lst }),
-                                            currentSnapshot.pointers.current === node.id && React.createElement(NodePointer, { name: "curr", colorInfo: POINTER_COLORS.current }),
-                                            currentSnapshot.pointers.tail === node.id && React.createElement(NodePointer, { name: "tail", colorInfo: POINTER_COLORS.tail }),
-                                            currentSnapshot.pointers.prev === node.id && React.createElement(NodePointer, { name: "prev", colorInfo: POINTER_COLORS.prev }),
-                                            currentSnapshot.pointers.newNode === node.id && React.createElement(NodePointer, { name: "newNode", colorInfo: POINTER_COLORS.newNode }),
-                                            
-                                            React.createElement("div", {
-                                                className: `flex w-36 h-20 rounded-lg shadow-md border-2 overflow-hidden z-10 relative transition-colors duration-300
-                                                ${isNew ? 'border-green-400 bg-green-50' : ''}
-                                                ${isReturnedRef ? 'border-indigo-500 bg-indigo-50 shadow-indigo-200 ring-2 ring-indigo-200' : ''}
-                                                ${isFound ? 'border-green-500 bg-green-50 shadow-green-200' : ''}
-                                                ${isGC ? 'border-red-300 bg-red-50 border-dashed opacity-80' : ''}
-                                                ${!isNew && !isReturnedRef && !isFound && !isGC ? 'bg-white border-slate-300' : ''}`
-                                            }, [
-                                                React.createElement("div", { className: `flex-1 flex flex-col items-center justify-center border-r transition-colors duration-300 ${isReturnedRef ? 'border-indigo-200' : isGC ? 'border-red-200' : 'border-slate-200'} ` }, [
-                                                    React.createElement("span", { className: `text-[9px] font-bold uppercase tracking-wider mb-1 ${isReturnedRef ? 'text-indigo-600' : isGC ? 'text-red-400' : 'text-slate-400'}` }, "Value"),
-                                                    React.createElement("span", { className: `text-xl font-bold font-mono ${isReturnedRef ? 'text-indigo-800' : isGC ? 'text-red-800 decoration-line-through' : 'text-slate-800'}` }, node.val)
-                                                ]),
-                                                React.createElement("div", { className: `w-12 flex flex-col items-center justify-center transition-colors duration-300 ${isReturnedRef ? 'bg-indigo-100' : isGC ? 'bg-red-50' : 'bg-slate-100 hover:bg-slate-200'} ` }, [
-                                                    React.createElement("span", { className: `text-[8px] font-bold uppercase tracking-wider mb-1 ${isReturnedRef ? 'text-indigo-600' : isGC ? 'text-red-400' : 'text-slate-400'}` }, "Next"),
-                                                    React.createElement("div", { className: `w-2.5 h-2.5 rounded-full shadow-sm ring-2 ${isReturnedRef ? 'bg-indigo-600 ring-indigo-300' : isGC ? 'bg-red-400 ring-red-200' : 'bg-slate-800 ring-slate-300'} ` })
-                                                ]),
-                                                React.createElement(AnimatePresence, null, showPlusOne && (
-                                                    React.createElement(motion.div, {
-                                                        initial: { opacity: 0, y: 0, x: -10 },
-                                                        animate: { opacity: [0, 1, 0], y: -40, x: -40 },
-                                                        exit: { opacity: 0 },
-                                                        transition: { duration: 0.8, ease: "easeOut" },
-                                                        className: "absolute top-0 left-0 text-indigo-600 font-bold text-lg z-50 flex items-center pointer-events-none"
-                                                    }, [ React.createElement(Plus, { size: 16 }), " 1" ])
-                                                )),
-                                                isReturnedRef && React.createElement(motion.div, {
-                                                    initial: { scale: 0 }, animate: { scale: 1 },
-                                                    className: "absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1 whitespace-nowrap"
-                                                }, [ React.createElement(CornerDownLeft, { size: 10 }), " RETURN REF" ]),
-                                                isFound && React.createElement(motion.div, {
-                                                    initial: { scale: 0 }, animate: { scale: 1 },
-                                                    className: "absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md z-20 flex items-center gap-1 whitespace-nowrap"
-                                                }, [ React.createElement(CheckCircle2, { size: 10 }), " MATCH" ]),
-                                                isGC && React.createElement(motion.div, {
-                                                    initial: { scale: 0, rotate: -20 }, animate: { scale: 1, rotate: 0 },
-                                                    className: "absolute inset-0 flex items-center justify-center bg-white/50 z-30"
-                                                }, React.createElement("div", { className: "bg-red-100 p-2 rounded-full border border-red-200 shadow-sm" }, React.createElement(Trash2, { size: 20, className: "text-red-500" })))
-                                            ]),
-                                            React.createElement("div", { className: "text-center mt-2" },
-                                                React.createElement("span", { className: "text-[10px] font-mono text-slate-400 bg-white px-1.5 rounded border border-slate-100" }, `#${node.id.split('_')[1] || node.id}`)
-                                            )
-                                        ]),
-                                        node.next ? React.createElement(LinkArrow, { key: `arrow-${node.id}-${node.next}`, isModified: isActiveLink }) : React.createElement(NullBlock, { key: `null-${node.id}` })
-                                    ])
-                                }),
-                                currentSnapshot.listState.length === 0 && React.createElement(NullBlock, { key: "null-list", pointers: [currentSnapshot.pointers.lst === 'NULL' ? {name: 'lst', color: POINTER_COLORS.lst} : null].filter(Boolean) }),
-                                currentSnapshot.floatNodes && currentSnapshot.floatNodes.map(node => (
-                                    React.createElement(motion.div, {
-                                        key: `float-${node.id}`,
-                                        layout: true,
-                                        initial: { opacity: 0, y: -50 },
-                                        animate: { opacity: 1, y: -80, x: 20 },
-                                        exit: { opacity: 0 },
-                                        className: "absolute left-20 z-20 pointer-events-none"
-                                    }, React.createElement("div", { className: "relative" }, [
-                                        React.createElement(NodePointer, { name: "newNode", colorInfo: POINTER_COLORS.newNode }),
-                                        React.createElement("div", { className: "flex w-36 h-20 bg-yellow-50 rounded-lg shadow-xl border-2 border-dashed border-yellow-400 overflow-hidden" }, [
-                                            React.createElement("div", { className: "flex-1 flex flex-col items-center justify-center border-r border-yellow-200" }, [
-                                                React.createElement("span", { className: "text-[9px] font-bold text-yellow-600 uppercase mb-1" }, "Value"),
-                                                React.createElement("span", { className: "text-xl font-bold font-mono text-slate-800" }, node.val)
-                                            ]),
-                                            React.createElement("div", { className: "w-12 bg-yellow-100/50 flex flex-col items-center justify-center" }, 
-                                                React.createElement("div", { className: "w-2.5 h-2.5 rounded-full bg-slate-400" })
-                                            )
-                                        ])
-                                    ]))
-                                ))
-                            )
-                        )
-                    )
-                ),
-                React.createElement("div", { className: "lg:col-span-12 h-64 bg-slate-900 border-t border-slate-700 flex flex-col mt-4 rounded-xl shadow-lg overflow-hidden" },
-                    React.createElement("div", { className: "flex items-center justify-between px-4 py-2 bg-slate-950 text-slate-400 border-b border-slate-800" },
-                        React.createElement("div", { className: "flex items-center gap-2" },
-                            React.createElement(Code, { size: 16 }),
-                            React.createElement("span", { className: "text-xs font-bold uppercase tracking-wider" }, `${language} Implementation`)
-                        ),
-                        React.createElement("div", { className: "text-xs font-mono" }, `Line: ${currentSnapshot.highlightLine > -1 ? currentSnapshot.highlightLine : '--'}`)
-                    ),
-                    React.createElement("div", { className: "flex-1 overflow-y-auto p-4 font-mono text-sm" },
-                        CODE_DATA[language][selectedOp].split('\n').map((line, idx) => (
-                            React.createElement("div", {
-                                key: idx,
-                                className: `flex px-2 py-0.5 rounded transition-colors duration-200 ${idx + 1 === currentSnapshot.highlightLine ? 'bg-yellow-900/40 text-yellow-100 border-l-2 border-yellow-500' : 'text-slate-400'}`
-                            }, [
-                                React.createElement("span", { className: "w-8 text-right mr-4 text-slate-600 select-none text-xs leading-5" }, idx + 1),
-                                React.createElement("pre", { className: "whitespace-pre bg-transparent p-0 m-0 leading-5" }, line)
-                            ])
-                        ))
-                    )
-                )
-              )
-            )
-          );
-        }
-
-        const root = createRoot(document.getElementById('root'));
-        root.render(React.createElement(LinkedListAnimator));
+      // ==========================================
+      // MOUNT
+      // ==========================================
+      const root = createRoot(document.getElementById('root'));
+      root.render(
+        <React.StrictMode>
+          <WrappedApp />
+        </React.StrictMode>
+      );
     </script>
 </body>
 </html>
